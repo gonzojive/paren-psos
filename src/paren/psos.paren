@@ -1,0 +1,404 @@
+(in-package :paren-psos)
+
+(defvar standard-object global::-Object)
+(defvar *global-class-counter* 0)
+
+(defun next-class-id () (return (incf *global-class-counter*)))
+
+(defun link-supers-to-subclass (direct-superclasses subclass)
+  (dolist (sclass direct-superclasses)
+    (if (slot-value sclass 'direct-subclasses)
+	(methcall :push 
+		  (slot-value sclass 'direct-subclasses)
+		  subclass)
+	(setf (slot-value sclass 'direct-subclasses)
+	      (array subclass)))))
+
+(defun generate-std-class-constructor ()
+  "This function returns a function that acts as a constructor for any class
+in the PSOS system.  This function does nothing if an init-arg :ONLY-ALLOCATE is passed
+in as true.  This means that constructor is being called to allocate an instance of the
+class without instantiating it in any way, and is a necessary hack to make javascript
+prototyping function correctly.
+
+A note on how javascript constructors work: a constructor can either modify the 'this' object
+or return a new object that is the new instance.  The latter is what EVERY psos-class
+constructor does except for raw allocations."
+  (return
+    (lambda (init-args)
+      (if (not (and init-args
+		    (slot-value init-args :only-allocate)))
+	  (return (make-instance (class-of this) init-args))))))
+
+(defun std-class-make-instance (metaclass
+				&key 
+				name
+				(direct-superclasses (array standard-object))
+				slot-definitions
+				documentation
+				merge-prototypes
+				initarg-map
+				initform-fn)
+  "Bootstrapping version of make-instance for creating a standard class.
+Note: slot-defs are currently ignored because slots are defined at compile-time."
+  (let ((class-obj (generate-std-class-constructor)))
+    (setf (slot-value class-obj 'class-name) name)
+    (setf (slot-value class-obj 'psos-id) (methcall :to-string (next-class-id)))
+    (setf (slot-value class-obj 'direct-superclasses) direct-superclasses)
+    (setf (slot-value class-obj 'initform-fn) initform-fn)
+
+    (setf (slot-value class-obj :to-string)
+	  (lambda () (return (+ "<PSOS:Class " name ">"))))
+    (setf (slot-value class-obj :constructor)
+	  metaclass)
+    (std-finalize-inheritance class-obj)
+    ;; collapse superclass initargs into our own initargs
+    (std-forge-initarg-map class-obj initarg-map)
+    (when merge-prototypes
+      (lispy-apply merge-into class-obj.prototype
+		   (methcall :map (slot-value class-obj 'direct-superclasses)
+			  (lambda (cls) (return (slot-value cls :prototype))))))
+    (return class-obj)))
+
+(defun std-forge-initarg-map (class-obj initarg-map)
+  (setf (slot-value class-obj 'initarg-map) (create))
+  (dolist (sinitarg-map
+	    (methcall :concat
+		      (methcall :map (slot-value class-obj 'direct-superclasses)
+				(lambda (x) (return (slot-value x 'initarg-map))))
+		      (array initarg-map)))
+
+    (for-in (prop sinitarg-map)
+	    (setf (slot-value class-obj 'initarg-map prop)
+		  (slot-value sinitarg-map prop)))))
+;  (log (+ "Forged initarg-map in class-obj " (slot-value class-obj 'class-name)))
+;  (log (slot-value class-obj 'initarg-map)))
+
+  
+
+(defun std-class-finalize-inheritance (metaclass)
+  "Bootstrapping version of finalize-inheritance."
+  (setf (slot-value class-obj 'precedence-list) nil))
+;  (setf metaclass.precedence
+
+(defun std-finalize-inheritance (class-obj)
+  ;add direct subclass information to all superclasses
+  (link-supers-to-subclass (slot-value class-obj 'direct-superclasses) class-obj)
+  ;compute and store the class precedence list
+  (setf (slot-value class-obj 'precedence-list)
+	(compute-precedence-list class-obj)))
+
+(defun sort-class-precedence-list (class-list)
+  "Sorts the class precedence list with a topological sort. right now, it doesn't do anything."
+  (return class-list))
+
+(defun collect-superclasses (the-class)
+  (with-slots (direct-superclasses)
+      the-class
+    (let ((all-superclasses
+	    (if direct-superclasses
+		(methcall :apply
+			  (slot-value direct-superclasses :concat)
+			  direct-superclasses
+			  (methcall :map direct-superclasses collect-superclasses))
+		(array))))
+      (return (remove-duplicates all-superclasses)))))
+
+(defun compute-precedence-list (the-class)
+  (return (methcall :concat 
+		    (array the-class)
+		    (sort-class-precedence-list
+		     (collect-superclasses the-class)))))
+
+(defun ensure-class (class-obj &rest rest &key (metaclass standard-class))
+  "Ensures that a class exists that complies with the given options.  If it does not find
+a class it creates one, and if it finds one it attempts to redefine it.  This is sometimes not
+entirely possible (e.g. when a standard-funcallable-class is redefined as a standard class)."
+;; detect the standard class for boot-strapping purposes
+  (return (if (== metaclass standard-class)
+	      (lispy-apply std-class-make-instance metaclass rest)
+	      (lispy-apply make-instance metaclass rest))))
+
+;; method dispatch functionality
+
+(defun ensure-generic (existing-version &rest rest &key (generic-class standard-generic-function) name)
+  "Ensures that the existing generic function exists and conforms to the supplied options"
+  (return
+    (if (and existing-version (slot-value existing-version 'generic-methods))
+	existing-version
+	(if (== standard-generic-function generic-class)
+	    (lispy-apply std-generic-make-instance generic-class rest)
+	    (lispy-apply make-instance generic-class rest)))))
+
+(defun std-generic-add-method (generic method)
+  (setf (slot-value generic 'cached-method-combo) (create)) ; reset method cache hash
+  (methcall :push (slot-value generic 'generic-methods) method))
+
+(defun std-generic-make-instance (generic-class &rest rest &key name)
+  "Makes a standard generic function."
+  (let ((concrete-function (generate-callable-method)))
+    (with-slots (generic-methods generic-name cached-method-combo)
+	concrete-function
+      (setf generic-methods (array))
+      (setf generic-name name)
+      (setf cached-method-combo (create)))
+    (setf (slot-value concrete-function :to-string)
+	  (lambda () (return (+ "<PSOS:Generic " (slot-value concrete-function 'generic-name) ">"))))
+    (return concrete-function)))
+
+(defun apply-std-method-combination (method-combo args-arr)
+  "Applies a set of arguments to a bunch of primary, before, and after methods.  These
+primary, before, and after methods are passed in most-specific-first."
+  (when (== 0 (slot-value method-combo 'primaries :length))
+    (log (+ "No applicable methods for generic function call " 
+	    (slot-value method-combo 'generic 'generic-name)
+	    " with args") :error)
+    (log args-arr :error)
+    (log (args-arr.map class-of) :error)
+    (return nil))
+  (let ((ret-val undefined)
+	(befores (slot-value method-combo 'befores))
+	(afters (slot-value method-combo 'afters))
+	(primaries (methcall :slice (slot-value method-combo 'primaries) 0)))
+    ;; apply all the before methods from bottom to top
+    (dolist (bmeth befores)      (methcall :apply bmeth nil args-arr))
+    ;; apply all the primary methods from bottom to top.  During any method, it may call
+    ;; (call-next-method) to invoke the method after it
+    (let ((this-obj
+	   (create
+	    'primary-methods primaries
+	    'call-following-method
+	    (lambda ()
+	      (if (== 0 (slot-value this 'primary-methods :length))
+		  (return undefined))
+	      (let* ((next-method (methcall :shift (slot-value this 'primary-methods)))
+		     (args (if (== 0 (slot-value global::arguments :length))
+			       args-arr
+			       global::arguments))
+		     (result 
+		      (methcall :apply next-method this args)))
+		(return result))))))
+
+      (setf ret-val (methcall 'call-following-method this-obj)))
+
+    ;; apply all the after methods from top to bottom
+    (dolist2 (ameth afters :backward)	     (methcall :apply ameth nil args-arr))
+    (return ret-val)))
+
+(defun compute-effective-method-combination (generic args-arr)
+  (defvar qualifer-matcher 
+    (lambda (str)
+      (return (lambda (meth) 
+		(return (== str (slot-value meth 'qualifier)))))))
+
+  (let* ((applicable-methods
+	  (compute-applicable-methods generic args-arr))
+	 (effective-method-combo
+	  (create 'generic generic
+		  ;;		:arounds (applicable-methods.filter
+		  ;;			    (lambda (meth) (return (== meth.qualifier "around"))))
+		  'primaries (methcall :filter applicable-methods (qualifer-matcher "primary"))
+		  'befores (methcall :filter applicable-methods (qualifer-matcher "before"))
+		  'afters (methcall :filter applicable-methods (qualifer-matcher "after")))))
+    (return effective-method-combo)))
+    
+(defun generate-callable-method ()
+  "Returns a new function that serves as the executable function for a generic function.
+Compute-applicable-methods and subsequent steps like the primaries, befores, afters
+filtering could all be cached."
+  (return
+    (lambda (&rest args)
+      (let* ((generic (slot-value global::arguments :callee))
+	     (call-signature
+	      (methcall
+	       :join
+	       (methcall :map
+			 args
+			 (lambda (arg)
+			   (let ((the-class (class-of arg)))
+			     (return (or (and the-class (slot-value the-class 'psos-id))
+					 (typeof arg))))))))
+	     (effective-method-combo
+	      (or (slot-value generic 'cached-method-combo call-signature)
+		  (compute-effective-method-combination generic args))))
+	(setf (slot-value generic 'cached-method-combo call-signature)
+	      effective-method-combo)
+	(return (apply-std-method-combination effective-method-combo args))))))
+
+(defun ensure-method (concrete-generic specializer-list concrete-function &optional (qualifier "primary"))
+  "A specializer list is a list of classes at the places where normal arguments
+are normally passed.  So if a method specializes the second argument with
+the class Ball, it the specializer list would be [null, ball, ...]
+the second argument is the function to be called when this method is called"
+  (setf (slot-value concrete-function 'qualifier) qualifier)
+  (setf (slot-value concrete-function 'specializer-list) specializer-list)
+  (std-generic-add-method concrete-generic concrete-function)
+  (return concrete-function))
+
+(defun is-subclass-of (specializer test-class)
+  (return
+    (if (== specializer test-class)
+	t
+	(and (slot-value specializer 'direct-subclasses)
+	     (methcall :some (slot-value specializer 'direct-subclasses)
+		     (lambda (deeper-specializer)
+		       (return (is-subclass-of deeper-specializer test-class))))))))
+
+(defun specializer-fits-class? (specializer the-class)
+  (if (== nil specializer)
+      (return t)
+      (return (is-subclass-of 
+	       specializer the-class))))
+
+(defun superclass-more-specific? (on-class super1 super2)
+  (if (== nil (slot-value on-class 'precedence-list))
+      (return nil))
+  (dolist (cur-super (slot-value on-class 'precedence-list))
+    (if (== super1 cur-super)
+	(return t))
+    (if (== super2 cur-super)
+	(return nil)))
+  (return nil))
+
+(defun specializer-list-specificity-comparator (class-list speclist1 speclist2)
+  (dotimes (index (slot-value class-list :length))
+    (let ((test-class (slot-value class-list index))
+	  (spec1 (slot-value speclist1 index))
+	  (spec2 (slot-value speclist2 index)))
+      (return (if (!= spec1 spec2)
+		  (if (superclass-more-specific? test-class spec1 spec2)
+		      -1
+		      1)
+		  0)))))
+
+(defun compute-applicable-methods (concrete-generic args)
+  "Computers the methods that are applicable to the given generic function when passed
+args.  Right now it looks through all the method specializers."
+  (let* ((classes-of-args (methcall :map args (lambda (arg) (return (class-of arg)))))
+	 (applicable-methods
+	  (methcall :filter (slot-value concrete-generic 'generic-methods)
+		    (lambda (meth) (return (specializer-list-applicable?
+					    (slot-value meth 'specializer-list)
+					    args)))))
+	 (final-method-list
+	  (methcall :sort applicable-methods
+		    (lambda (meth1 meth2)
+		      (return (specializer-list-specificity-comparator
+			       classes-of-args
+			       (slot-value meth1 'specializer-list)
+			       (slot-value meth2 'specializer-list)))))))
+    (return final-method-list)))
+		
+(defun specializer-list-applicable? (specializer-list method-arguments)
+  (let ((method-classes (methcall :map method-arguments class-of)))
+    (let ((fit-results
+	   (lispy-map specializer-fits-class?
+		      specializer-list
+		      method-classes)))
+      (return
+	(methcall :every fit-results
+	 (Lambda (item) (return item)))))))
+
+;;; Bootstrapping
+;; 1. Create the standard class.
+(defvar standard-class (std-class-make-instance
+			nil
+			:name "standard-class"
+			:direct-superclasses (array standard-object)))
+;; 2. Set up the circular reference for standard-class's class, standard-class.
+(setf (slot-value standard-class :constructor) standard-class)
+
+;; 3. Define built-in classes
+(defclass standard-generic-function ()
+  ()
+  (:documentation "The parent class of generic functions."))
+
+(defclass standard-method ()
+  ()
+  (:documentation "The parent class of generic functions."))
+
+;; built-in classes/generic functions
+(defgeneric make-instance (of-class &rest rest)
+  (:documentation "Creates and initializes (by default) an instance of the given class."))
+
+(defgeneric allocate-instance (of-class &rest rest)
+  (:documentation "Allocates an instance without initializing it."))
+
+(defgeneric initialize-instance (instance &rest rest)
+  (:documentation "Called to initialize an instance with the given initargs.  Default behavior
+is to merge the initargs into the instance for slot instantiation."))
+
+(defvar init-instance initialize-instance)
+
+(defmethod allocate-instance ((of-class standard-class) &rest rest)
+  (return (new (of-class (create :only-allocate t)))))
+
+(defmethod make-instance ((of-class standard-class) &rest rest)
+;  (log (+ "making instance of class " (slot-value of-class 'class-name)))
+  (let ((instance (methcall :apply allocate-instance this global::arguments)))
+    (return (or (lispy-apply initialize-instance instance rest)
+		instance))))
+
+(defmethod initialize-instance ((instance standard-object) &rest rest)
+  ;; First we loop through the initargs and corresponding slots on the object
+  (let ((initarg-map (slot-value (class-of instance) 'initarg-map))
+	(i 0))
+    (while (< i (length rest))
+      (let* ((prop (aref rest i))
+	     (val (aref rest (+ i 1)))
+	     (instance-prop (slot-value initarg-map prop)))
+	(when instance-prop
+	  (setf (slot-value instance instance-prop) val)))
+      (incf i 2)))
+;  (log (+ "Initializing instance of class "  (class-of instance) " and with initform-fn " (slot-value (class-of instance) 'initform-fn)))
+  ;; Now we set slots of objects that haven't been initialized
+  (lispy-map (lambda (supercl)
+	       (when (slot-value supercl 'initform-fn)
+		 (methcall 'initform-fn supercl instance)))
+	     (class-precedence-list (class-of instance))))
+
+;    (log initarg-map)
+;    (for-in (prop initargs)
+;	    (log (slot-value initargs prop))
+;	    (let ((instance-prop (slot-value initarg-map prop)))
+;	      (log instance-prop)
+;	      (when instance-prop (setf (slot-value instance instance-prop)
+;					(slot-value initargs prop)))))))
+
+;  (merge-into instance options))
+
+;;; public interface follows ;;;
+;;; select implementation from AMOP p.50
+(defmethod class-name ((class-obj standard-class))
+  (return (slot-value class-obj 'class-name)))
+
+(defmethod class-direct-superclasses ((class-obj standard-class))
+  (return (slot-value class-obj 'direct-superclasses)))
+
+(defmethod class-direct-subclasses ((class-obj standard-class))
+  (return (slot-value class-obj 'direct-subclasses)))
+
+(defmethod class-precedence-list ((class-obj standard-class))
+  (return (slot-value class-obj 'precedence-list)))
+
+(defmethod class-direct-methods ((class-obj standard-class))
+  (log "unsupported method" :error))
+
+(defmethod class-default-direct-superclasses ((class-obj standard-class))
+  (return (array -object)))
+
+(defmethod generic-name ((generic standard-generic-function))
+  (return (slot-value generic 'generic-name)))
+
+(defmethod class-initarg-map ((class-obj standard-class))
+  (return (slot-value class-obj 'initarg-map)))
+
+(defun class-of (obj)
+  (return (if obj
+	      (or (slot-value obj 'psos-metaclass)
+		  (slot-value obj :constructor))
+	      nil)))
+
+(defmethod class-default-direct-superclasses ((class-obj standard-class))
+  (return (array standard-object)))
+

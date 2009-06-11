@@ -1,0 +1,325 @@
+(defvar standard-object -Object)
+(defun link-supers-to-subclass (direct-superclasses subclass)
+  (dolist (sclass direct-superclasses)
+    (if sclass.direct-subclasses
+	(sclass.direct-subclasses.push subclass)
+	(setf sclass.direct-subclasses (array subclass)))))
+
+(defun ensure-class (name direct-superclasses)
+  (return (create-class.apply nil arguments)))
+
+(defun ensure-class-superclasses (class-function direct-superclasses)
+  (setf direct-superclasses
+	(if (== 0 direct-superclasses.length)
+	    (array -object)
+	    direct-superclasses))
+  (setf class-function.direct-superclasses
+	direct-superclasses)
+  ;add direct subclass information to all superclasses
+  (link-supers-to-subclass direct-superclasses class-function)
+  ;compute and store the class precedence list
+  (setf class-function.precedence-list
+	(compute-precedence-list class-function)))
+  
+
+; this isn't pretty but it works
+(defun remove-duplicates (in-arr equality-lambda)
+  (defaultf equality-lambda (lambda (ob1 ob2) (return (=== ob1 ob2))))
+  (let ((working-array in-arr)
+	(out-arr (array)))
+    (while t
+      (if (== 0 working-array.length)
+	  (break)
+	  (let ((latest-unique-item (slot-value working-array 0)))
+	    (out-arr.push latest-unique-item)
+	    (setf working-array 
+		  (working-array.filter 
+		   (lambda (test-item)
+		     (return (not (equality-lambda test-item latest-unique-item)))))))))
+    (return out-arr)))
+
+(defun sort-class-precedence-list (class-list)
+  (return class-list))
+
+(defun collect-superclasses (the-class)
+  (return (remove-duplicates
+	   (if the-class.direct-superclasses
+	       (the-class.direct-superclasses.concat.apply
+		the-class.direct-superclasses	       
+		(the-class.direct-superclasses.map collect-superclasses))
+	       (array)))))
+
+(defun compute-precedence-list (the-class)
+  (return ((slot-value (array the-class) 'concat)
+	   (sort-class-precedence-list
+		      (collect-superclasses the-class)))))
+
+(defun apply-methods (args-arr primaries befores afters)
+  (let ((ret-val undefined))
+    (dolist (bmeth befores)
+      (bmeth.apply nil args-arr))
+    (let ((this-obj
+	   (create
+	    :primary-methods primaries
+	    :call-following-method (lambda ()
+				(if (== 0 this.primary-methods.length)
+				    (return undefined))
+				(return ((slot-value (this.primary-methods.shift) 'apply)
+					 this
+					 (if (== 0 arguments.length)
+					     args-arr
+					     arguments)))
+				 (log "call next method please!")))))
+      (setf ret-val (this-obj.call-following-method)))
+    (dolist2 (ameth afters :backward)
+      (ameth.apply nil args-arr))
+    (return ret-val)))
+
+(defun generate-effective-method ()
+  (return
+    (lambda ()
+      (let ((args-arr (to-array arguments))
+	    (applicable-methods
+	     (compute-applicable-methods arguments.callee
+					 args-arr)))
+	(if (== 0 applicable-methods.length)
+	    (progn
+	      (console.trace)
+	      (log (+ "No applicable methods for generic function call " arguments.callee.generic-name " with args") :error)
+	      (log args-arr :error)
+	      (log (args-arr.map class-of) :error)))
+;	    (throw "No applicable method for generic function call"))
+	(let ((primaries (applicable-methods.filter
+			  (lambda (meth) (return (== meth.qualifier "primary")))))
+	      (befores (applicable-methods.filter
+			(lambda (meth) (return (== meth.qualifier "before")))))
+	      (afters (applicable-methods.filter
+		       (lambda (meth) (return (== meth.qualifier "after"))))))
+	  ;(log (+ "Primaries: " primaries ", befores: " befores ", afters" afters))
+	  (return (apply-methods args-arr primaries befores afters)))))))
+	  
+
+(defun create-generic ()
+  (let ((concrete-function (generate-effective-method)))
+    (setf concrete-function.method-specializers (array))
+    (setf concrete-function.add-method
+	  (lambda (method)
+	    (concrete-function.method-specializers.push method)))
+    (return concrete-function)))
+
+(defun ensure-generic (existing-version name)
+  (defvar rv
+    (if (and existing-version existing-version.method-specializers)
+	existing-version
+	(create-generic)))
+  (setf rv.generic-name name)
+  (return rv))
+
+; a specializer list is a list of classes at the places where normal arguments
+; are normally passed.  So if a method specializes the second argument with
+; the class Ball, it the specializer list would be [null, ball, ...]
+; the second argument is the function to be called when this method is called
+(defun create-method (concrete-generic specializer-list concrete-function qualifier)
+  (setf concrete-function.qualifier qualifier)
+  (setf concrete-function.specializer-list specializer-list)
+  (concrete-generic.add-method concrete-function)
+  (return concrete-function))
+
+(defun is-subclass-of (specializer test-class)
+  (return (if (== specializer test-class)
+	      t
+	      (and specializer.direct-subclasses
+		   (specializer.direct-subclasses.some
+		    (lambda (deeper-specializer)
+		      (return (is-subclass-of deeper-specializer test-class))))))))
+
+(defun specializer-fits-class? (specializer the-class)
+  ;(log (+ "Specializer / Class: " specializer " / " the-class))
+  (if (== nil specializer)
+      (return t)
+      (return (is-subclass-of 
+	       specializer the-class))))
+
+(defun superclass-more-specific? (on-class super1 super2)
+  (if (== nil on-class.precedence-list)
+      (return nil))
+  (dolist (cur-super on-class.precedence-list)
+    (if (== super1 cur-super)
+	(return t))
+    (if (== super2 cur-super)
+	(return nil)))
+  (return nil))
+
+(defun specializer-list-specificity-comparator (class-list speclist1 speclist2)
+  (dotimes (index class-list.length)
+    (let ((test-class (slot-value class-list index))
+	  (spec1 (slot-value speclist1 index))
+	  (spec2 (slot-value speclist2 index)))
+      (return (if (!= spec1 spec2)
+		  (if (superclass-more-specific? test-class spec1 spec2)
+		      -1
+		      1)
+		  0)))))
+
+(defun compute-applicable-methods (concrete-generic args)
+  (let ((classes-of-args (args.map (lambda (arg) (return (class-of arg)))))
+	(applicable-methods
+	 (concrete-generic.method-specializers.filter
+	  (lambda (meth) (return (specializer-list-applicable?
+				  meth.specializer-list
+				  args))))))
+    (return (applicable-methods.sort
+	     (lambda (meth1 meth2)
+	       (return (specializer-list-specificity-comparator
+			classes-of-args
+			meth1.specializer-list meth2.specializer-list)))))))
+		
+(defun specializer-list-applicable? (specializer-list method-arguments)
+  (let ((method-classes (method-arguments.map class-of)))
+    (let ((fit-results
+	   (lispy-map specializer-fits-class?
+		      specializer-list
+		      method-classes)))
+      (return
+	(fit-results.every
+	 (lambda (item) (return item)))))))
+
+; built-in classes/generic functions
+(defmethod init-instance (any-obj)
+  (return (call-next-method)))
+;; NOTE: the interface for this function has changed.  it used to take a single argument
+;; that was the current 'this' object.  however, now it takes the glass to be initialized
+;; and the working 'this' o
+(defgeneric create-instance (some-class))
+
+;; this function returns a function that acts as a function for any class
+;; in the PSOS system. instantiation by the usre is handled through
+;; init-instance rather than through the constructor itself
+(defun create-class-constructor ()
+  (return
+    (lambda ()
+;      (log (+ "trying to create new class constructor of class " (class-of this) " / " (class-of (class-of this))))
+      ; make the arguments acceptable to init-instance by
+      ; making array of form [ this, arg0, ..., argN ]
+      (let ((args-array (to-array arguments))
+	    (obj-of-correct-type (create-instance (class-of this) args-array this)))
+	(init-instance.apply nil ((slot-value (array obj-of-correct-type) 'concat) args-array))
+	(return obj-of-correct-type)))))
+
+; define the standard-class, whose instances are all user-defined classes
+; and whose class is itself.  we avoid circularity by setting
+; standard-class equal to (new standard-class), which calls the constructor
+; and then replaces it with the newly created function, which is the function
+; that can be used to create user classes.
+(defun standard-class (name)
+  (let ((bootstrapped-constructor (create-class-constructor))
+	(bc bootstrapped-constructor))
+	  ; set properties expected of a standard class so that
+    (setf bc.class-name "standard-class")
+    (setf bc.direct-superclasses (array -object))
+    (setf bc.precedence-list (array -object))
+    (setf bc.to-string (lambda () (return "<PSOS:Class standard-class>")))
+     ; set the class of the standard class to the standard class
+    (setf bc.constructor bootstrapped-constructor)
+  ;returning a function from a constructor replaces the 'this' object
+  ;as the initialized object. 
+  (return bootstrapped-constructor)))
+
+; bootstrap standard class as described above
+(setf standard-class (new standard-class))
+
+;; this method is called to initialize a class.  It is called in the expansion
+;; of defclass.
+;(defmethod init-instance ((class-function standard-class) name direct-superclasses metaclass)
+;  (console.trace)
+;  (defvar asserted-class-obj (create-class-constructor))
+;  (defvar aso asserted-class-obj)
+;  (setf aso.class-name name)
+;  (setf aso.to-string (lambda () (return (+ "<Class  " name ">"))))
+;  (log aso)
+;  (ensure-class-superclasses aso (or direct-superclasses (array)))
+;  (defaultf metaclass (class-of class-function))
+;  (log (+ "previous constructor: " aso.constructor) :info 1000)
+;  (setf aso.constructor metaclass)
+;  (log (+ "initializing class " name " with metaclass " (class-of aso)) :info 1000)
+;  (return aso))
+
+(defmethod create-instance ((our-class standard-class) init-args (working-obj standard-class))
+;  (console.trace)
+  (defvar asserted-class-obj (create-class-constructor))
+  (setf asserted-class-obj.constructor our-class)
+;  (log "ASSERTED CLASS:")
+;  (log asserted-class-obj)
+  (return asserted-class-obj))
+
+(defmethod create-instance ((our-class standard-class) init-args working-obj)
+;  (log (+ "creating instance of " our-class.class-name "."))
+  (return (or working-obj (new our-class))))
+
+(defmethod init-instance ((class-function standard-class) name direct-superclasses slots-ignored options)
+  (defvar aso class-function)
+  (defvar metaclass (or options.metaclass (class-of class-function)))
+  (setf aso.class-name name)
+  (setf aso.to-string (lambda () (return (+ "<Class  " name ">"))))
+;  (log (+ "class-of-aso " (class-of aso)))
+  (ensure-class-superclasses aso (or direct-superclasses (array)))
+;  (defaultf metaclass (class-of class-function))
+;  (log (+ "previous constructor: " aso.constructor) :info 1000)
+  (setf aso.constructor metaclass)
+;  (log (+ "initializing class " name " with metaclass " (class-of aso)) :info 1000)
+  (return aso))
+
+;(defmethod create-instance :after (our-class standard-object) init-args &optional working-obj)
+
+
+;(defun2 create-instance ((our-class standard-class) &optional working-obj &rest init-args)
+;  (setf working-obj (or working-obj (new our-class)))
+;  (init-instance.apply nil ((slot-value (array working-obj) 'concat) init-args))
+;  (return working-obj))
+
+;;; public interface follows ;;;
+;;; select implementation from AMOP p.50
+(defmethod class-name ((class-obj standard-class))
+  (return class-obj.class-name))
+
+(defmethod class-direct-superclasses ((class-obj standard-class))
+  (return class-obj.direct-superclasses))
+
+(defmethod class-direct-subclasses ((class-obj standard-class))
+  (return class-obj.direct-subclasses))
+
+(defmethod class-precedence-list ((class-obj standard-class))
+  (return class-obj.precedence-list))
+
+(defmethod class-direct-methods ((class-obj standard-class))
+  (log "unsupported method" :error))
+
+(defmethod class-default-direct-superclasses ((class-obj standard-class))
+  (return (array -object)))
+
+;(defmethod make-instance (class-obj standard-class)
+;  (return 
+
+
+(defun class-of (obj)
+  (return (if obj
+	      (or obj.psos-metaclass obj.constructor)
+	      nil)))
+
+;(defmethod ensure-superclasses ((class-function standard-class) direct-superclasses)
+;  (ensure-class-superclasses class-function direct-superclasses))
+
+(defun create-class (name direct-superclasses slots-ignored options)
+;  (log (+ "le metaclass " metaclass))
+  (return (new (standard-class name direct-superclasses slots-ignored options))))
+
+;(defclass colorful-class (standard-class))
+
+;(defmethod init-instance :before ((class-obj colorful-class))
+;   (log "colorful init instance called"))
+
+;(new (standard-class "DogEater" (array)))
+;(new (colorful-class "RedColor" (array)))
+
+(defmethod class-default-direct-superclasses ((class-obj standard-class))
+  (return (array -object)))

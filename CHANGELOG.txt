@@ -1,0 +1,9 @@
+---
+Version 0.1.0, Dec 19 2006: Initial Release (red)
+FEATURES
+* multiple inheritance for PSOS classes
+* basic functionality for generic functions, including method combinations
+TODO
+* method dispatch optimization
+* slots beyond javascript's built-in per-object slot storage.
+* a well-defined metaobject protocol

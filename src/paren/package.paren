@@ -1,0 +1,28 @@
+#+paren-packages
+(defpackage :paren-psos
+  (:nicknames :psos)
+  (:use :parenscript :paren-util)
+  (:lisp-package :paren-psos)
+  (:secondary-lisp-packages :closer-mop)
+  (:export
+   #:defgeneric
+   #:defmethod
+   #:defclass
+   #:standard-object
+   #:standard-class
+   #:standard-generic-function
+   #:standard-method
+   #:make-instance
+   #:allocate-instance
+   #:initialize-instance
+   #:class-name
+   #:class-direct-superclasses
+   #:class-direct-subclasses
+   #:class-precedence-list
+   #:class-direct-methods
+   #:class-default-direct-superclasses
+   #:class-initarg-map
+   #:generic-name
+   #:class-of))
+#+paren-packages
+(in-package :paren-psos)

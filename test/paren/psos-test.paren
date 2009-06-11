@@ -1,0 +1,80 @@
+(defpackage :psos-test
+  (:use :parenscript :paren-test :paren-psos)
+  )
+
+(in-package :psos-test)
+
+(defsuite "psos-test")
+(in-suite "psos-test")
+
+(deftest is-five ()
+  (is (== 5 5)))
+
+(defvar *init-order* (array))
+
+(defclass thing () ())
+(defclass alive (thing) ())
+(defclass person (alive) ())
+
+(defun push-init (thing)
+;  (log thing)
+  (:.push *init-order* thing))
+
+(defmethod initialize-instance ((x thing))  (push-init "THING")  (call-next-method))
+(defmethod initialize-instance ((x alive))  (push-init "ALIVE")  (call-next-method))
+(defmethod initialize-instance ((x person)) (push-init "PERSON") (call-next-method))
+
+(defclass grandfather () ())
+(defclass father (grandfather) ())
+(defclass son (father) ())
+
+(defmethod initialize-instance ((x father))       (push-init "FATHER")  (call-next-method))
+(defmethod initialize-instance ((x grandfather))  (push-init "GRANDFATHER")  (call-next-method))
+(defmethod initialize-instance ((x son))          (push-init "SON") (call-next-method))
+
+(deftest init-order-person ()
+  (setf *init-order* (array))
+  (make-instance person)
+  (is (== "PERSON" (aref *init-order* 0)))
+  (is (== "ALIVE" (aref *init-order* 1)))
+  (is (== "THING" (aref *init-order* 2))))
+
+(deftest init-order-son-father-grandfather ()
+  (setf *init-order* (array))
+  (make-instance son)
+  (is (== "SON" (aref *init-order* 0)))
+  (is (== "FATHER" (aref *init-order* 1)))
+  (is (== "GRANDFATHER" (aref *init-order* 2))))
+
+(deftest person-class-precedence-list ()
+  (make-instance person)
+  (let ((supposed-precedence-list
+	 (array person alive thing standard-object)))
+    (dotimes (i 4)
+      (is (== (aref (class-precedence-list person) i)
+	      (aref supposed-precedence-list i))))))
+
+(defclass initarg-super ()
+  ((funbar :initarg :funbar :accessor foo-funbar)
+   (cat :initarg :cat :accessor foo-cat))
+  )
+
+(defclass initarg-son (initarg-super)
+  ((fatbar :initarg :fatbar :accessor foo-fatbar)))
+
+(deftest initarg-of-exact-class ()
+  (let ((guy (make-instance initarg-super :funbar 44 :cat 5)))
+    (is (== 44 (foo-funbar guy)))
+    (is (== 5 (foo-cat guy)))))
+
+(deftest initarg-of-superclass ()
+  (let ((subguy (make-instance initarg-son :fatbar 33 :funbar 44 :cat 5)))
+    (is (== 33 (foo-fatbar subguy)))
+    (is (== 44 (foo-funbar subguy)))
+    (is (== 5 (foo-cat subguy)))))
+
+;  (report (class-precedence-list thing))
+;  (report (class-precedence-list alive))
+;  (report (class-precedence-list person)))
+
+(run-tests "psos-test")
