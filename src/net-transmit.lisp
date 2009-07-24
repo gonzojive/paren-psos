@@ -33,7 +33,9 @@ Returns nil if the slot should not be included.")
 		  (rjson:represent value))))))
 
 (defmethod rjson-type ((object standard-object))
-  (class-name (class-of object)))
+  (let ((name-symbol (class-name (class-of object))))
+    (format nil "~A:~A"
+	    (package-name (symbol-package name-symbol))   (symbol-name name-symbol))))
 
 (defmethod represent-rjson ((object standard-object))
   "Represents an object's slots and such in an RJSON-compatible way."

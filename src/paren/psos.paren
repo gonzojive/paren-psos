@@ -115,7 +115,7 @@ Note: slot-defs are currently ignored because slots are defined at compile-time.
 a class it creates one, and if it finds one it attempts to redefine it.  This is sometimes not
 entirely possible (e.g. when a standard-funcallable-class is redefined as a standard class)."
 ;; detect the standard class for boot-strapping purposes
-  (return (if (== metaclass standard-class)
+  (return (if (=== metaclass standard-class)
 	      (lispy-apply std-class-make-instance metaclass rest)
 	      (lispy-apply make-instance metaclass rest))))
 
@@ -126,7 +126,7 @@ entirely possible (e.g. when a standard-funcallable-class is redefined as a stan
   (return
     (if (and existing-version (slot-value existing-version 'generic-methods))
 	existing-version
-	(if (== standard-generic-function generic-class)
+	(if (=== standard-generic-function generic-class)
 	    (lispy-apply std-generic-make-instance generic-class rest)
 	    (lispy-apply make-instance generic-class rest)))))
 
@@ -146,6 +146,8 @@ entirely possible (e.g. when a standard-funcallable-class is redefined as a stan
 	  (lambda () (return (+ "<PSOS:Generic " (slot-value concrete-function 'generic-name) ">"))))
     (return concrete-function)))
 
+;;; BEGIN LOSS
+
 (defun apply-std-method-combination (method-combo args-arr)
   "Applies a set of arguments to a bunch of primary, before, and after methods.  These
 primary, before, and after methods are passed in most-specific-first."
@@ -153,13 +155,14 @@ primary, before, and after methods are passed in most-specific-first."
     (log (+ "No applicable methods for generic function call " 
 	    (slot-value method-combo 'generic 'generic-name)
 	    " with args") :error)
+    (log method-combo)
     (log args-arr :error)
     (log (args-arr.map class-of) :error)
     (return nil))
-  (let ((ret-val undefined)
-	(befores (slot-value method-combo 'befores))
-	(afters (slot-value method-combo 'afters))
-	(primaries (methcall :slice (slot-value method-combo 'primaries) 0)))
+  (let* ((ret-val undefined)
+	 (befores (slot-value method-combo 'befores))
+	 (afters (slot-value method-combo 'afters))
+	 (primaries (methcall :slice (slot-value method-combo 'primaries) 0)))
     ;; apply all the before methods from bottom to top
     (dolist (bmeth befores)      (methcall :apply bmeth nil args-arr))
     ;; apply all the primary methods from bottom to top.  During any method, it may call
@@ -182,7 +185,7 @@ primary, before, and after methods are passed in most-specific-first."
       (setf ret-val (methcall 'call-following-method this-obj)))
 
     ;; apply all the after methods from top to bottom
-    (dolist2 (ameth afters :backward)	     (methcall :apply ameth nil args-arr))
+    (dolist2 (ameth afters :backward) (methcall :apply ameth nil args-arr))
     (return ret-val)))
 
 (defun compute-effective-method-combination (generic args-arr)
@@ -197,10 +200,16 @@ primary, before, and after methods are passed in most-specific-first."
 	  (create 'generic generic
 		  ;;		:arounds (applicable-methods.filter
 		  ;;			    (lambda (meth) (return (== meth.qualifier "around"))))
-		  'primaries (methcall :filter applicable-methods (qualifer-matcher "primary"))
-		  'befores (methcall :filter applicable-methods (qualifer-matcher "before"))
+		  'primaries (methcall :reverse
+				       (methcall :filter applicable-methods
+						 (qualifer-matcher "primary")))
+		  'befores (methcall :reverse
+				     (methcall :filter applicable-methods
+					       (qualifer-matcher "before")))
 		  'afters (methcall :filter applicable-methods (qualifer-matcher "after")))))
     (return effective-method-combo)))
+
+;;; END LOSS
     
 (defun generate-callable-method ()
   "Returns a new function that serves as the executable function for a generic function.
@@ -208,7 +217,7 @@ Compute-applicable-methods and subsequent steps like the primaries, befores, aft
 filtering could all be cached."
   (return
     (lambda (&rest args)
-      (let* ((generic (slot-value global::arguments :callee))
+      (let* ((generic (slot-value js-global::arguments :callee))
 	     (call-signature
 	      (methcall
 	       :join
@@ -237,7 +246,7 @@ the second argument is the function to be called when this method is called"
 
 (defun is-subclass-of (specializer test-class)
   (return
-    (if (== specializer test-class)
+    (if (=== specializer test-class)
 	t
 	(and (slot-value specializer 'direct-subclasses)
 	     (methcall :some (slot-value specializer 'direct-subclasses)
@@ -254,9 +263,9 @@ the second argument is the function to be called when this method is called"
   (if (== nil (slot-value on-class 'precedence-list))
       (return nil))
   (dolist (cur-super (slot-value on-class 'precedence-list))
-    (if (== super1 cur-super)
+    (if (=== super1 cur-super)
 	(return t))
-    (if (== super2 cur-super)
+    (if (=== super2 cur-super)
 	(return nil)))
   (return nil))
 
@@ -264,12 +273,15 @@ the second argument is the function to be called when this method is called"
   (dotimes (index (slot-value class-list :length))
     (let ((test-class (slot-value class-list index))
 	  (spec1 (slot-value speclist1 index))
-	  (spec2 (slot-value speclist2 index)))
-      (return (if (!= spec1 spec2)
-		  (if (superclass-more-specific? test-class spec1 spec2)
-		      -1
-		      1)
-		  0)))))
+	  (spec2 (slot-value speclist2 index))
+	  (indexth-specializer-result (if (!== spec1 spec2)
+					  (if (superclass-more-specific? test-class spec1 spec2)
+					      -1
+					      1)
+					  0)))
+      (when (!== 0 indexth-specializer-result)
+	  (return indexth-specializer-result))))
+  (return 0))
 
 (defun compute-applicable-methods (concrete-generic args)
   "Computers the methods that are applicable to the given generic function when passed
@@ -355,7 +367,8 @@ is to merge the initargs into the instance for slot instantiation."))
   (lispy-map (lambda (supercl)
 	       (when (slot-value supercl 'initform-fn)
 		 (methcall 'initform-fn supercl instance)))
-	     (class-precedence-list (class-of instance))))
+	     (class-precedence-list (class-of instance)))
+  (return instance))
 
 ;    (log initarg-map)
 ;    (for-in (prop initargs)
@@ -401,4 +414,3 @@ is to merge the initargs into the instance for slot instantiation."))
 
 (defmethod class-default-direct-superclasses ((class-obj standard-class))
   (return (array standard-object)))
-
