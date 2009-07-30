@@ -48,7 +48,7 @@ This doesn't handle multiple readers and writers."
   (declare (ignore options))
   (let ((name-as-string (string-downcase (string formal-name))))
     `(defvar ,formal-name (ensure-generic ,formal-name
-			   (create :name ,name-as-string)))))
+			   :name ,name-as-string))))
 
 (defun parse-defjsmethod-args (args)
   (let* ((name (first args))
@@ -87,7 +87,7 @@ This doesn't handle multiple readers and writers."
     (let* ((name-as-string (string-downcase (string formal-name)))
 	   (result
 	    `(progn
-	       (defvar ,formal-name (ensure-generic ,formal-name (create :name ,name-as-string)))
+	       (defvar ,formal-name (ensure-generic ,formal-name :name ,name-as-string))
 	       (ensure-method ,formal-name (array ,@specializers)
 			      (lambda ,argument-list
 				,@body)
