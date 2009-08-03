@@ -27,11 +27,11 @@
 		       (list
 			`((and
 			   js-global::window
-			   js-global::window.console
-			   js-global::console.firebug)
+			   (slot-value js-global::window :console)
+			   (slot-value js-global::console :firebug))
 			  ,(case level
 				 (:error `(methcall :error js-global::console ,message))
-				 (:warn `(methcall :warn js-global::console.warn ,message))
+				 (:warn `(methcall :warn (slot-value js-global::console :warn) ,message))
 				 (:warning `(methcall :warn js-global::console ,message))
 				 ((:info nil) `(methcall :info js-global::console ,message)))))))))
 ;	(format t "~S~%" result)
