@@ -3,6 +3,9 @@
 (defvar standard-object global::-Object)
 (defvar *global-class-counter* 0)
 
+(defvar *classes* (create)) ;; hash table to lookup classes by name
+(defvar *fns* (create)) ;; hash table to lookup classes by name
+
 (defun next-class-id () (return (incf *global-class-counter*)))
 
 (defun link-supers-to-subclass (direct-superclasses subclass)
@@ -355,6 +358,13 @@ is to merge the initargs into the instance for slot instantiation."))
     (return (or (lispy-apply initialize-instance instance rest)
 		instance))))
 
+(defmethod make-instance ((class-name js-global::-string) &rest rest)
+;  (log (+ "making instance of class " (slot-value of-class 'class-name)))
+  (let ((clz (slot-value *classes* class-name)))
+    (if clz
+	(return (lispy-apply make-instance clz rest))
+	(throw (+ "ERROR  Class of name " class-name " not found!")))))
+
 (defmethod initialize-instance ((instance standard-object) &rest rest)
   ;; First we loop through the initargs and corresponding slots on the object
 ;  (log "initialize-instance standard-object")
@@ -423,3 +433,13 @@ is to merge the initargs into the instance for slot instantiation."))
 
 (defmethod class-default-direct-superclasses ((class-obj standard-class))
   (return (array standard-object)))
+
+(defun rjson-alloc-fn (for-class)
+  (return (lambda () (return (allocate-instance for-class)))))
+
+(defun rjson-init-fn (for-class)
+  (return (lambda (existing-obj arg-obj)
+	    (let ((result (lispy-apply initialize-instance
+				       existing-obj
+				       (object-to-keyargs arg-obj))))
+	      (return result)))))

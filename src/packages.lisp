@@ -26,7 +26,8 @@
    #:class-default-direct-superclasses
    #:class-initarg-map
    #:generic-name
-   #:class-of))
+   #:class-of
+   #:import-class))
 
 
 (in-package org.iodb.paren-psos)

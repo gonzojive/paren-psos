@@ -47,8 +47,9 @@ This doesn't handle multiple readers and writers."
 (ps:defpsmacro defgeneric (formal-name &body options)
   (declare (ignore options))
   (let ((name-as-string (string-downcase (string formal-name))))
-    `(defvar ,formal-name (ensure-generic ,formal-name
-			   :name ,name-as-string))))
+    ;; was defvar but changed to setf so it affects the global situation
+    `(defvar ,formal-name (ensure-generic (or ,formal-name (slot-value js-global:window ',formal-name))
+					  :name ,name-as-string))))
 
 (defun parse-defjsmethod-args (args)
   (let* ((name (first args))
@@ -87,7 +88,9 @@ This doesn't handle multiple readers and writers."
     (let* ((name-as-string (string-downcase (string formal-name)))
 	   (result
 	    `(progn
-	       (defvar ,formal-name (ensure-generic ,formal-name :name ,name-as-string))
+	       ;; was defvar but changed to setf so it affects the global situation
+	       (defvar ,formal-name (ensure-generic (or ,formal-name (slot-value js-global:window ',formal-name))
+						    :name ,name-as-string))
 	       (ensure-method ,formal-name (array ,@specializers)
 			      (lambda ,argument-list
 				,@body)
