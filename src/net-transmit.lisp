@@ -1,22 +1,4 @@
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; net-transmit: utilities for sending CLOS instances across the net as RJSON objects
-
-;; Using RJSON's generic function-based protocol for defining RJSON `representations' of
-;; objects, we specialize REPRESENT-RJSON for standard-object.  We also add the generic
-;; function REPRESENT-RJSON-SLOT which takes an object and slot definition as arguments
-;; and returns the key and value for that slot being represented for that object.
-
-;; PSOS adds a powerful system for object-related programming in a web browser.
-;; It becomes even more powerful when we allow objects to be used interchangably
-;; in Lisp and Parenscript.  Not only must we conquer multi-language issues, but
-;; we must also deal with transmission of objects over a network.
-;; Controlling how classes are defined and shared between Lisp and Parenscript, 
 (in-package :paren-psos)
-
-;;; RJSON representation
-(defmethod represent-rjson ((object structure-object))
-  "Represents an object's slots and such in an RJSON-compatible way."
-  (error "Cannot represent structures with RJSON."))
 
 (defgeneric represent-rjson-slot (object slot)
   (:documentation "Should return two parenscript forms, one for

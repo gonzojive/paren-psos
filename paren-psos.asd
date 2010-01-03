@@ -16,7 +16,7 @@
 			((:file "packages")
 			 ;; (:file "rjson" :depends-on ("packages"))
 			 (:file "lisp-integration" :depends-on ("packages"))
-			 (:file "net-transmit" :depends-on ("lisp-integration"))
+			 ;; (:file "rjson-clos" :depends-on ("lisp-integration"))
 			 ;; (:file "parse-lambda-list" :depends-on ("packages"))
 			 (:file "util-macrology" :depends-on ("lisp-integration"))
 			 (:file "psos-macrology" :depends-on ("util-macrology" "lisp-integration"))

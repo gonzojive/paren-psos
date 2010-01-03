@@ -215,7 +215,6 @@ primary, before, and after methods are passed in most-specific-first."
     (return effective-method-combo)))
 
 ;;; END LOSS
-    
 (defun generate-callable-method ()
   "Returns a new function that serves as the executable function for a generic function.
 Compute-applicable-methods and subsequent steps like the primaries, befores, afters
@@ -316,7 +315,7 @@ args.  Right now it looks through all the method specializers."
 		      method-classes)))
       (return
 	(methcall :every fit-results
-	 (Lambda (item) (return item)))))))
+	 (lambda (item) (return item)))))))
 
 ;;; Bootstrapping
 ;; 1. Create the standard class.
