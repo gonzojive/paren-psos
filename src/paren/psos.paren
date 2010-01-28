@@ -3,6 +3,9 @@
 (defvar standard-object global::-Object)
 (defvar *global-class-counter* 0)
 
+(defvar *classes* (create)) ;; hash table to lookup classes by name
+(defvar *fns* (create)) ;; hash table to lookup classes by name
+
 (defun next-class-id () (return (incf *global-class-counter*)))
 
 (defun link-supers-to-subclass (direct-superclasses subclass)
@@ -129,7 +132,6 @@ entirely possible (e.g. when a standard-funcallable-class is redefined as a stan
 	     (if (=== standard-generic-function generic-class)
 		 (lispy-apply std-generic-make-instance generic-class rest)
 		 (lispy-apply make-instance generic-class rest)))))
-    (setf (slot-value result 'js-global::fn) name)
     (return result)))
 
 (defun std-generic-add-method (generic method)
@@ -139,7 +141,6 @@ entirely possible (e.g. when a standard-funcallable-class is redefined as a stan
 (defun std-generic-make-instance (generic-class &rest rest &key name)
   "Makes a standard generic function."
   (let ((concrete-function (generate-callable-method)))
-    (setf (slot-value concrete-function 'js-global::fn) name)
     #+nil(log (+ "STD-GENERIC-MAKE-INSTANCE with class of name " name))
     (with-slots (generic-methods generic-name cached-method-combo)
 	concrete-function
@@ -364,6 +365,13 @@ is to merge the initargs into the instance for slot instantiation."))
     (return (or (lispy-apply initialize-instance instance rest)
 		instance))))
 
+(defmethod make-instance ((class-name js-global::-string) &rest rest)
+;  (log (+ "making instance of class " (slot-value of-class 'class-name)))
+  (let ((clz (slot-value *classes* class-name)))
+    (if clz
+	(return (lispy-apply make-instance clz rest))
+	(throw (+ "ERROR  Class of name " class-name " not found!")))))
+
 (defmethod initialize-instance ((instance standard-object) &rest rest)
   ;; First we loop through the initargs and corresponding slots on the object
 ;  (log "initialize-instance standard-object")
@@ -432,3 +440,13 @@ is to merge the initargs into the instance for slot instantiation."))
 
 (defmethod class-default-direct-superclasses ((class-obj standard-class))
   (return (array standard-object)))
+
+(defun rjson-alloc-fn (for-class)
+  (return (lambda () (return (allocate-instance for-class)))))
+
+(defun rjson-init-fn (for-class)
+  (return (lambda (existing-obj arg-obj)
+	    (let ((result (lispy-apply initialize-instance
+				       existing-obj
+				       (object-to-keyargs arg-obj))))
+	      (return result)))))

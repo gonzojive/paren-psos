@@ -67,6 +67,22 @@
 (defgeneric expand-psos-definition (psos-definition)
   (:documentation "This is poorly named."))
 
+#+nil
+(defgeneric lisp-to-psos-slot-definition (lisp-slot class)
+  (:documentation "Converts a lisp slot definition to a parenscript one."))
+
+#+nil
+(defmethod lisp-to-psos-slot-definition ((lisp-slot closer-mop:effective-slot-definition) class)
+  nil)
+
+#+nil
+(defmethod lisp-to-psos-slot-definition ((lisp-slot closer-mop:direct-slot-definition) class)
+  (make-instance 'psos-direct-slot-definition
+		 :readers (closer-mop:slot-definition-initargs
+			   :initargs (closer-mop:slot-definition-initargs lisp-slot)
+			   :name (closer-mop:slot-definition-name lisp-slot))))
+  
+
 (defmethod expand-psos-definition ((class-definition psos-class-definition))
   "Expands a class definition to a parenscript form."
   (with-accessors ((class-name classdef-name) (superclasses classdef-direct-superclasses)
@@ -75,12 +91,13 @@
 		   (documentation classdef-documentation))
     class-definition
     `(progn
+       ;; was defvar but changed to setf so it affects the global situation
       (defvar ,class-name (ensure-class
 			   ,class-name
 			   :name ,(string-downcase (string class-name))
 			   ,@(when superclasses
 				   (list :direct-superclasses `(array ,@superclasses)))
-			   :slot-definitions nil	 ; place-holder for class slots
+			   :slot-definitions nil ; placeholder for true slot stuff
 			   :initarg-map
 			   (create
 			    ,@(mapcan 
@@ -99,6 +116,7 @@
 						      ,(psos-slot-initform slot-def)))
 					     slot-definitions))))
 			   ,@(apply #'append options)))
+      (setf (slot-value *classes* ',class-name) ,class-name)
       ,@(mapcar #'(lambda (slot-def)
 		    (expand-psos-slot-definition class-name slot-def))
 		slot-definitions))))
@@ -171,11 +189,18 @@
 (defmethod import-lisp-slot-definition ((slot-definition closer-mop:standard-direct-slot-definition))
   (make-instance 'psos-direct-slot-definition
 		  :name (closer-mop:slot-definition-name slot-definition)
+		  :initargs (closer-mop:slot-definition-initargs slot-definition)
 		  :class nil
 		  :readers (closer-mop:slot-definition-readers slot-definition)
 		  :writers nil
 		  :documentation (documentation slot-definition t)))
 
 (ps:defpsmacro import-class (class-name &key alias)
-  (expand-psos-definition
-   (import-lisp-class (find-class class-name) :alias alias)))
+  `(progn
+     ,(expand-psos-definition
+       (import-lisp-class (find-class class-name) :alias alias))
+     (rjtype ,(rjson:rjson-type-of-class (find-class class-name))
+	     :alloc-fn (rjson-alloc-fn ,class-name)
+	     :init-fn (rjson-init-fn ,class-name))))
+
+     
