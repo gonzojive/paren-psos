@@ -156,12 +156,19 @@ entirely possible (e.g. when a standard-funcallable-class is redefined as a stan
   "Applies a set of arguments to a bunch of primary, before, and after methods.  These
 primary, before, and after methods are passed in most-specific-first."
   (when (== 0 (slot-value method-combo 'primaries :length))
-    (log (+ "No applicable methods for generic function call " 
-	    (slot-value method-combo 'generic 'generic-name)
-	    " with args") :error)
-    (log method-combo)
-    (log args-arr)
-    (log (methcall :map args-arr class-of))
+    (pslog (:error "No applicable methods for generic function call `%s`")
+	   (slot-value method-combo 'generic 'generic-name))
+    (pslog (:error "   args: %o") args-arr)
+    (pslog (:error "classes: %o")
+	   (methcall :map args-arr
+		     (lambda (arg)
+		       (let* ((c (and arg  (class-of arg)))
+			      (cn (and c (or (slot-value c 'class-name)
+					     (slot-value c 'js-global::name)))))
+			 (return (or cn c))))))
+    #+nil
+    (pslog method-combo))
+
     (return nil))
   (let* ((ret-val undefined)
 	 (befores (slot-value method-combo 'befores))
