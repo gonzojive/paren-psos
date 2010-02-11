@@ -36,7 +36,23 @@
 				 ((:info nil) `(methcall :info js-global::console ,message)))))))))
 ;	(format t "~S~%" result)
 	result)))
-	
+
+(ps:defpsmacro pslog (message-spec &rest format-args)
+  (when (not (consp message-spec))
+    (setf message-spec (list nil message-spec)))
+  (destructuring-bind (log-level message-format) message-spec
+    `(progn
+       ,@(when *firebug-output*
+	   (list `(when (and js-global::window
+			     (slot-value js-global::window 'js-global::console)
+			     (slot-value js-global::console 'js-global::firebug))
+		    ;; logging is enabled, let's roll..
+		    ,(case log-level
+		       (:error `(methcall :error js-global::console ,message-format ,@format-args))
+		       (:warn `(methcall :warn js-global::console ,message-format ,@format-args))
+		       (:info `(methcall :info js-global::console ,message-format ,@format-args))
+		       (t `(methcall :log js-global::console ,message-format ,@format-args)))))))))
+		      
 
 (ps:defpsmacro debug-time-start (str)
   (if *client-debug-p*

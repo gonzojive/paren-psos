@@ -6,6 +6,8 @@
   (:use :common-lisp :parenscript :paren-util :rjson)
   (:export
    #:encode-rjson-string
+   ;; hackish
+   #:pslog
 
    ;; parenscript exports
    #:defgeneric
