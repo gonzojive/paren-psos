@@ -168,8 +168,7 @@ primary, before, and after methods are passed in most-specific-first."
 					     (slot-value c 'js-global::name)))))
 			 (return (or cn c))))))
     #+nil
-    (pslog method-combo))
-
+    (pslog method-combo)
     (return nil))
   (let* ((ret-val undefined)
 	 (befores (slot-value method-combo 'befores))

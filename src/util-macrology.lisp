@@ -49,8 +49,9 @@
 		    ;; logging is enabled, let's roll..
 		    ,(case log-level
 		       (:error `(methcall :error js-global::console ,message-format ,@format-args))
+		       (:warn `(methcall :warn js-global::console ,message-format ,@format-args))
 		       (:info `(methcall :info js-global::console ,message-format ,@format-args))
-		       (nil `(methcall :log js-global::console ,message-format ,@format-args)))))))))
+		       (t `(methcall :log js-global::console ,message-format ,@format-args)))))))))
 		      
 
 (ps:defpsmacro debug-time-start (str)
