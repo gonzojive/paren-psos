@@ -74,8 +74,6 @@ Note: slot-defs are currently ignored because slots are defined at compile-time.
     (for-in (prop sinitarg-map)
 	    (setf (slot-value class-obj 'initarg-map prop)
 		  (slot-value sinitarg-map prop)))))
-;  (log (+ "Forged initarg-map in class-obj " (slot-value class-obj 'class-name)))
-;  (log (slot-value class-obj 'initarg-map)))
 
   
 
@@ -141,7 +139,6 @@ entirely possible (e.g. when a standard-funcallable-class is redefined as a stan
 (defun std-generic-make-instance (generic-class &rest rest &key name)
   "Makes a standard generic function."
   (let ((concrete-function (generate-callable-method)))
-    #+nil(log (+ "STD-GENERIC-MAKE-INSTANCE with class of name " name))
     (with-slots (generic-methods generic-name cached-method-combo)
 	concrete-function
       (setf generic-methods (array))
@@ -161,14 +158,20 @@ primary, before, and after methods are passed in most-specific-first."
 	   (slot-value method-combo 'generic 'generic-name))
     (pslog (:error "   args: %o") args-arr)
     (pslog (:error "classes: %o")
-	   (methcall :map args-arr
+           (methcall :map args-arr
 		     (lambda (arg)
 		       (let* ((c (and arg  (class-of arg)))
 			      (cn (and c (or (slot-value c 'class-name)
 					     (slot-value c 'js-global::name)))))
 			 (return (or cn c))))))
-    #+nil
-    (pslog method-combo)
+    (pslog (:error "Hello?"))
+    (methcall "trace" 'js-global::console)
+
+    (throw (create "message" (+ "No applicable methods for generic function call "
+                                (slot-value method-combo 'generic 'generic-name))
+                   "toString" (lambda () (return (slot-value this "message")))))
+
+
     (return nil))
   (let* ((ret-val undefined)
 	 (befores (slot-value method-combo 'befores))
@@ -358,13 +361,11 @@ is to merge the initargs into the instance for slot instantiation."))
   (return (new (of-class (create :only-allocate t)))))
 
 (defmethod make-instance ((of-class standard-class) &rest rest)
-;  (log (+ "making instance of class " (slot-value of-class 'class-name)))
   (let ((instance (methcall :apply allocate-instance this global::arguments)))
     (return (or (lispy-apply initialize-instance instance rest)
 		instance))))
 
 (defmethod make-instance ((class-name js-global::-string) &rest rest)
-;  (log (+ "making instance of class " (slot-value of-class 'class-name)))
   (let ((clz (slot-value *classes* class-name)))
     (if clz
 	(return (lispy-apply make-instance clz rest))
@@ -372,10 +373,6 @@ is to merge the initargs into the instance for slot instantiation."))
 
 (defmethod initialize-instance ((instance standard-object) &rest rest)
   ;; First we loop through the initargs and corresponding slots on the object
-;  (log "initialize-instance standard-object")
-;  (log instance)
-;  (log (+ "Initializing instance of class "  (class-of instance) " and with initform-fn " (slot-value (class-of instance) 'initform-fn)))
-;  (log rest)
   (let ((initarg-map (slot-value (class-of instance) 'initarg-map))
 	(i 0))
     (while (< i (length rest))
@@ -391,18 +388,8 @@ is to merge the initargs into the instance for slot instantiation."))
 	       (when (slot-value supercl 'initform-fn)
 		 (methcall 'initform-fn supercl instance)))
 	     (class-precedence-list (class-of instance)))
-;  (log instance)
   (return instance))
 
-;    (log initarg-map)
-;    (for-in (prop initargs)
-;	    (log (slot-value initargs prop))
-;	    (let ((instance-prop (slot-value initarg-map prop)))
-;	      (log instance-prop)
-;	      (when instance-prop (setf (slot-value instance instance-prop)
-;					(slot-value initargs prop)))))))
-
-;  (merge-into instance options))
 
 ;;; public interface follows ;;;
 ;;; select implementation from AMOP p.50
@@ -419,7 +406,7 @@ is to merge the initargs into the instance for slot instantiation."))
   (return (slot-value class-obj 'precedence-list)))
 
 (defmethod class-direct-methods ((class-obj standard-class))
-  (log "unsupported method" :error))
+  (throw "Unsupported method: class-direct-method"))
 
 (defmethod class-default-direct-superclasses ((class-obj standard-class))
   (return (array -object)))
