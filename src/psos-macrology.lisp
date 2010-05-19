@@ -79,11 +79,13 @@ This doesn't handle multiple readers and writers."
 		       (when key-object
 			 (list '&key-object key-object)))))
 	  (values name qualifiers specializers
-		  normal-lambda-list body))))))
+		  normal-lambda-list body lambda-list))))))
 
 (ps:defpsmacro defmethod (&rest args)
-  (multiple-value-bind (formal-name method-qualifiers specializers argument-list body)
+  (multiple-value-bind (formal-name method-qualifiers specializers argument-list body lambda-list)
       (parse-defjsmethod-args args)
+    (setf (gethash formal-name parenscript::*ps-function-toplevel-cache*)
+          argument-list)
     ;(format t "~%DEFMETHOD ARGS: ~A ~% and resultant argument list: ~A ~%" args argument-list)
     (let* ((name-as-string (string-downcase (string formal-name)))
 	   (result
