@@ -45,7 +45,7 @@
        ,@(when *firebug-output*
 	   (list `(when (and js-global::window
 			     (slot-value js-global::window 'js-global::console)
-			     (slot-value js-global::console 'js-global::firebug))
+			     (slot-value js-global::console 'js-global::log))
 		    ;; logging is enabled, let's roll..
 		    ,(case log-level
 		       (:error `(methcall :error js-global::console ,message-format ,@format-args))

@@ -64,7 +64,7 @@
     :initform nil))
   (:documentation "A class definition in the parenscript object system."))
 
-(defgeneric expand-psos-definition (psos-definition)
+(defgeneric expand-psos-definition (psos-definition &key &allow-other-keys)
   (:documentation "This is poorly named."))
 
 #+nil
@@ -83,43 +83,45 @@
 			   :name (closer-mop:slot-definition-name lisp-slot))))
   
 
-(defmethod expand-psos-definition ((class-definition psos-class-definition))
+(defmethod expand-psos-definition ((class-definition psos-class-definition)
+                                   &key extra-superclasses &allow-other-keys)
   "Expands a class definition to a parenscript form."
-  (with-accessors ((class-name classdef-name) (superclasses classdef-direct-superclasses)
+  (with-accessors ((class-name classdef-name) 
 		   (slot-definitions classdef-direct-slot-definitions)
 		   (options classdef-options)
 		   (documentation classdef-documentation))
     class-definition
-    `(progn
-       ;; was defvar but changed to setf so it affects the global situation
-      (defvar ,class-name (ensure-class
-			   ,class-name
-			   :name ,(string-downcase (string class-name))
-			   ,@(when superclasses
-				   (list :direct-superclasses `(array ,@superclasses)))
-			   :slot-definitions nil ; placeholder for true slot stuff
-			   :initarg-map
-			   (create
-			    ,@(mapcan 
-			       #'(lambda (slot-def)
-				   (mapcar 'parenscript:symbol-to-js-string
-					   (mapcan #'(lambda (init-arg)
-						       (list init-arg (psos-slot-name slot-def)))
-						   (psos-slot-initargs slot-def))))
-			       slot-definitions))
-			   :initform-fn
-			   ,(when (remove nil slot-definitions :key 'psos-slot-initform)
-			      (let ((object-var (gensym "self_obj")))
-				`(lambda (,object-var)
-				   ,@(mapcar #'(lambda (slot-def)
-						 `(defaultf (slot-value ,object-var ',(psos-slot-name slot-def))
-						      ,(psos-slot-initform slot-def)))
-					     slot-definitions))))
-			   ,@(apply #'append options)))
-      (setf (slot-value *classes* ',class-name) ,class-name)
-      ,@(mapcar #'(lambda (slot-def)
-		    (expand-psos-slot-definition class-name slot-def))
-		slot-definitions))))
+    (let ((superclasses (append (classdef-direct-superclasses class-definition)  extra-superclasses)))
+      `(progn
+         ;; was defvar but changed to setf so it affects the global situation
+         (defvar ,class-name (ensure-class
+                              ,class-name
+                              :name ,(string-downcase (string class-name))
+                              ,@(when superclasses
+                                  (list :direct-superclasses `(array ,@superclasses)))
+                              :slot-definitions nil ; placeholder for true slot stuff
+                              :initarg-map
+                              (create
+                               ,@(mapcan 
+                                  #'(lambda (slot-def)
+                                      (mapcar 'parenscript:symbol-to-js-string
+                                              (mapcan #'(lambda (init-arg)
+                                                          (list init-arg (psos-slot-name slot-def)))
+                                                      (psos-slot-initargs slot-def))))
+                                  slot-definitions))
+                              :initform-fn
+                              ,(when (remove nil slot-definitions :key 'psos-slot-initform)
+                                 (let ((object-var (gensym "self_obj")))
+                                   `(lambda (,object-var)
+                                      ,@(mapcar #'(lambda (slot-def)
+                                                    `(defaultf (slot-value ,object-var ',(psos-slot-name slot-def))
+                                                         ,(psos-slot-initform slot-def)))
+                                                slot-definitions))))
+                              ,@(apply #'append options)))
+         (setf (slot-value *classes* ',class-name) ,class-name)
+         ,@(mapcar #'(lambda (slot-def)
+                       (expand-psos-slot-definition class-name slot-def))
+                   slot-definitions)))))
   
 
 (defun js-format-symbol (format-string &rest format-args)
@@ -195,10 +197,11 @@
 		  :writers nil
 		  :documentation (documentation slot-definition t)))
 
-(ps:defpsmacro import-class (class-name &key alias)
+(ps:defpsmacro import-class (class-name &key alias extra-superclasses)
   `(progn
      ,(expand-psos-definition
-       (import-lisp-class (find-class class-name) :alias alias))
+       (import-lisp-class (find-class class-name) :alias alias)
+       :extra-superclasses extra-superclasses)
      (rjtype ,(rjson:rjson-type-of-class (find-class class-name))
 	     :alloc-fn (rjson-alloc-fn ,class-name)
 	     :init-fn (rjson-init-fn ,class-name))))
