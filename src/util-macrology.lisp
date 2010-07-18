@@ -38,7 +38,8 @@
 	result)))
 
 (ps:defpsmacro pslog (message-spec &rest format-args)
-  (when (not (consp message-spec))
+  (when (or (not (consp message-spec))
+            (not (keywordp (first message-spec))))
     (setf message-spec (list nil message-spec)))
   (destructuring-bind (log-level message-format) message-spec
     `(progn

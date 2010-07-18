@@ -86,6 +86,9 @@ This doesn't handle multiple readers and writers."
       (parse-defjsmethod-args args)
     (setf (gethash formal-name parenscript::*ps-function-toplevel-cache*)
           argument-list)
+    (setf (gethash formal-name parenscript::*ps-function-location-toplevel-cache* nil)
+          (list (ps::make-source-location 'defmethod formal-name argument-list body)))
+
     ;(format t "~%DEFMETHOD ARGS: ~A ~% and resultant argument list: ~A ~%" args argument-list)
     (let* ((name-as-string (string-downcase (string formal-name)))
 	   (result

@@ -1,10 +1,13 @@
 (in-package :paren-psos)
 
-(defvar standard-object global::-Object)
+(defvar standard-object jsns::-Object)
 (defvar *global-class-counter* 0)
 
 (defvar *classes* (create)) ;; hash table to lookup classes by name
 (defvar *fns* (create)) ;; hash table to lookup classes by name
+
+(defun find-class (name)
+  (return (slot-value *classes* name)))
 
 (defun next-class-id () (return (incf *global-class-counter*)))
 
@@ -189,9 +192,9 @@ primary, before, and after methods are passed in most-specific-first."
 	      (if (== 0 (slot-value this 'primary-methods :length))
 		  (return undefined))
 	      (let* ((next-method (methcall :shift (slot-value this 'primary-methods)))
-		     (args (if (== 0 (slot-value global::arguments :length))
+		     (args (if (== 0 (slot-value jsns::arguments :length))
 			       args-arr
-			       global::arguments))
+			       jsns::arguments))
 		     (result 
 		      (methcall :apply next-method this args)))
 		(return result))))))
@@ -260,6 +263,7 @@ the second argument is the function to be called when this method is called"
   (return concrete-function))
 
 (defun is-subclass-of (specializer test-class)
+  ""
   (return
     (if (=== specializer test-class)
 	t
@@ -334,6 +338,7 @@ args.  Right now it looks through all the method specializers."
 			:direct-superclasses (array standard-object)))
 ;; 2. Set up the circular reference for standard-class's class, standard-class.
 (setf (slot-value standard-class :constructor) standard-class)
+(setf (slot-value *classes* 'standard-class) standard-class)
 
 ;; 3. Define built-in classes
 (defclass standard-generic-function ()
@@ -361,7 +366,7 @@ is to merge the initargs into the instance for slot instantiation."))
   (return (new (of-class (create :only-allocate t)))))
 
 (defmethod make-instance ((of-class standard-class) &rest rest)
-  (let ((instance (methcall :apply allocate-instance this global::arguments)))
+  (let ((instance (methcall :apply allocate-instance this jsns::arguments)))
     (return (or (lispy-apply initialize-instance instance rest)
 		instance))))
 

@@ -10,7 +10,7 @@
   :description "ParenScript Object System - A CLOS-like object system for ParenScript."
   :version "0.2.1"
   :author "Red Daly <reddaly at gmail>"
-  :license "GPL version 2: http://www.gnu.org/licenses/gpl.html"
+  :license "MIT License"
   :components ((:module "src"
                         :components 
 			((:file "packages")
@@ -28,6 +28,19 @@
 	       
   :depends-on ("parenscript" "closer-mop" "paren-util" "rjson"))
 
+
+(defsystem :paren-psos-test
+  :description "Lisp and Parenscript tests for the Parenscript Object System."
+  :version "0.2.0"
+  :author "Red Daly"
+  :license "MIT License"
+  :components ((:module "test"
+			:components
+			((:module "paren-test"
+				  :components ((:parenscript-file "psos-test"))))))
+  :depends-on ("parenscript" "paren-psos" "cl-spidermonkey" "hu.dwim.stefil"))
+
+#+nil
 (defsystem :paren-psos-test
   :description "Lisp and Parenscript tests for the Parenscript Object System."
   :version "0.2.0"
