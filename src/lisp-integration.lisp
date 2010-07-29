@@ -197,13 +197,14 @@
 		  :writers nil
 		  :documentation (documentation slot-definition t)))
 
-(ps:defpsmacro import-class (class-name &key alias extra-superclasses)
+(ps:defpsmacro import-class (class-name &key alias extra-superclasses alloc-fn init-fn construct-fn)
   `(progn
      ,(expand-psos-definition
        (import-lisp-class (find-class class-name) :alias alias)
        :extra-superclasses extra-superclasses)
      (rjtype ,(rjson:rjson-type-of-class (find-class class-name))
-	     :alloc-fn (rjson-alloc-fn ,class-name)
-	     :init-fn (rjson-init-fn ,class-name))))
+             :construct-fn ,construct-fn
+	     :alloc-fn ,(or alloc-fn `(rjson-alloc-fn ,class-name))
+	     :init-fn ,(or init-fn `(rjson-init-fn ,class-name)))))
 
      

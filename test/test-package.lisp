@@ -89,6 +89,54 @@
              (psos::is-subclass-of intellectual smart-elitist)
              t))))
 
+(deftest test-slot-inheritance ()
+  (ps-forms-equal-lisp-forms
+    (3 (progn
+         (defclass doggy () 
+           ((x :initarg :x :initform 3 :accessor doggy-x)))
+         
+         (defclass poodle (doggy) 
+           ((x :initarg :x :initform 4 :accessor doggy-x)))
 
+         (doggy-x (make-instance 'doggy))))
+    (4 (progn
+         (doggy-x (make-instance 'doggy))))))
 
+(deftest test-initialize-instance-initargs ()
+  (ps-forms-equal-lisp-forms
+    (5 (progn
+         (doggy-x (make-instance 'doggy :x 5))))))
 
+(deftest test-return-value-is-primary ()
+  (ps-forms-equal-lisp-forms
+    (1 (progn
+         (defgeneric my-method2 ())
+         (defmethod my-method2 ((x doggy))
+                    (return 1))
+         (defmethod my-method2  :after ((x doggy))
+                    (return 2))
+         (my-method2 (make-instance 'doggy :x 1))))))
+
+(deftest test-redefined-method-replace-old-ones ()
+  (ps-forms-equal-lisp-forms
+    (3 (progn
+         (defgeneric my-method (x))
+         (defmethod my-method (x)
+           (return 3))
+         (my-method 8)))
+    (4 (progn
+         (defmethod my-method (x)
+           (return 4))
+         (my-method 8)))
+    (5 (progn
+         (defmethod my-method ((x doggy))
+           (return 5))
+         (my-method (make-instance 'doggy))))
+    (6 (progn
+         (defmethod my-method ((x doggy))
+           (return 6))
+         (my-method (make-instance 'doggy))))
+    (6 (progn
+         (defmethod my-method :after ((x doggy))
+           (return 7))
+         (my-method (make-instance 'doggy))))))

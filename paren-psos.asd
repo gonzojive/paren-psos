@@ -36,7 +36,8 @@
   :license "MIT License"
   :components ((:module "test"
 			:components
-			((:module "paren-test"
+			((:file "test-package")
+                         (:module "paren"
 				  :components ((:parenscript-file "psos-test"))))))
   :depends-on ("parenscript" "paren-psos" "cl-spidermonkey" "hu.dwim.stefil"))
 

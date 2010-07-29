@@ -7,12 +7,23 @@
 (defvar *fns* (create)) ;; hash table to lookup classes by name
 
 (defun find-class (name)
+  "Returns a class object by the name of the class, or undefined if no
+class exists with that name."
   (return (slot-value *classes* name)))
 
-(defun next-class-id () (return (incf *global-class-counter*)))
+(defun next-class-id ()
+  "Each class is given a unique integer identifier.  This function
+returns a unique identifier for a class, though it does not require
+that the identifer is actually used."
+  (return (incf *global-class-counter*)))
 
 (defun link-supers-to-subclass (direct-superclasses subclass)
+  "Each class keeps track of its direct subclasses in the javascript
+hash value 'direct-superclasses'.  This function Ensures that SUBCLASS
+is in the list of direct subclasses of each direct superclass in
+DIRECT-SUPERCLASSES."
   (dolist (sclass direct-superclasses)
+    ;; FIXME: ensure no duplicates
     (if (slot-value sclass 'direct-subclasses)
 	(methcall :push 
 		  (slot-value sclass 'direct-subclasses)
@@ -21,15 +32,17 @@
 	      (array subclass)))))
 
 (defun generate-std-class-constructor ()
-  "This function returns a function that acts as a constructor for any class
-in the PSOS system.  This function does nothing if an init-arg :ONLY-ALLOCATE is passed
-in as true.  This means that constructor is being called to allocate an instance of the
-class without instantiating it in any way, and is a necessary hack to make javascript
-prototyping function correctly.
+  "This function returns a function that acts as a constructor for any
+class in the PSOS system.  This function does nothing if an
+init-arg :ONLY-ALLOCATE is passed in as true.  This means that
+constructor is being called to allocate an instance of the class
+without instantiating it in any way, and is a necessary hack to make
+javascript prototyping function correctly.
 
-A note on how javascript constructors work: a constructor can either modify the 'this' object
-or return a new object that is the new instance.  The latter is what EVERY psos-class
-constructor does except for raw allocations."
+A note on how javascript constructors work: a constructor can either
+modify the 'this' object or return a new object that is the new
+instance.  The latter is what EVERY psos-class constructor does except
+for raw allocations."
   (return
     (lambda (init-args)
       (if (not (and init-args
@@ -46,7 +59,8 @@ constructor does except for raw allocations."
 				initarg-map
 				initform-fn)
   "Bootstrapping version of make-instance for creating a standard class.
-Note: slot-defs are currently ignored because slots are defined at compile-time."
+Note: slot-defs are currently ignored because slots are defined at
+compile-time."
   (let ((class-obj (generate-std-class-constructor)))
     (setf (slot-value class-obj 'class-name) name)
     (setf (slot-value class-obj 'psos-id) (methcall :to-string (next-class-id)))
@@ -97,6 +111,7 @@ Note: slot-defs are currently ignored because slots are defined at compile-time.
   (return class-list))
 
 (defun collect-superclasses (the-class)
+  "Returns a set of all THE-CLASS's superclasses"
   (with-slots (direct-superclasses)
       the-class
     (let ((all-superclasses
@@ -109,6 +124,9 @@ Note: slot-defs are currently ignored because slots are defined at compile-time.
       (return (remove-duplicates all-superclasses)))))
 
 (defun compute-precedence-list (the-class)
+  "Computes the class precedence list for THE-CLASS based on a
+topological sort of all the class's superclasses.  Most specific
+superclass is first."
   (return (methcall :concat 
 		    (array the-class)
 		    (sort-class-precedence-list
@@ -135,8 +153,31 @@ entirely possible (e.g. when a standard-funcallable-class is redefined as a stan
 		 (lispy-apply make-instance generic-class rest)))))
     (return result)))
 
+(defun method-signature (method)
+  "Returns a unique string for a given method, taking into account
+both the specializer list and whether the method is a primary, after,
+or before method."
+  (let ((str (+ (slot-value method 'qualifier) "")))
+    (dolist (specializer (slot-value method 'specializer-list))
+      (setf str (+ str "_"
+                   (cond ((not specializer) "NONE")
+                         ((slot-value specializer 'psos-id) (slot-value specializer 'psos-id))
+                         (t (methcall 'jsns::to-string specializer))))))
+    (return str)))
+
 (defun std-generic-add-method (generic method)
-  (setf (slot-value generic 'cached-method-combo) (create)) ; reset method cache hash
+  ;; reset method cache hash
+  (setf (slot-value generic 'cached-method-combo) (create))
+
+  ;; ensure that new methods with the same specializers as old
+  ;; ones replace the old ones
+  (setf (slot-value generic 'generic-methods)
+        (remove (slot-value method 'specializer-list)
+                (slot-value generic 'generic-methods)
+                :key (lambda (m) (return (slot-value m 'specializer-list)))
+                :test (lambda (x y)
+                        (return (every #'eql x y)))))
+
   (methcall :push (slot-value generic 'generic-methods) method))
 
 (defun std-generic-make-instance (generic-class &rest rest &key name)
@@ -157,8 +198,8 @@ entirely possible (e.g. when a standard-funcallable-class is redefined as a stan
   "Applies a set of arguments to a bunch of primary, before, and after methods.  These
 primary, before, and after methods are passed in most-specific-first."
   (when (== 0 (slot-value method-combo 'primaries :length))
-    (pslog (:error "No applicable methods for generic function call `%s`")
-	   (slot-value method-combo 'generic 'generic-name))
+    (pslog (:error "No applicable methods for generic function call `%s` with method combo %o")
+	   (slot-value method-combo 'generic 'generic-name) method-combo)
     (pslog (:error "   args: %o") args-arr)
     (pslog (:error "classes: %o")
            (methcall :map args-arr
@@ -167,8 +208,8 @@ primary, before, and after methods are passed in most-specific-first."
 			      (cn (and c (or (slot-value c 'class-name)
 					     (slot-value c 'js-global::name)))))
 			 (return (or cn c))))))
-    (pslog (:error "Hello?"))
-    (methcall "trace" 'js-global::console)
+    (when (slot-value jsns::window 'jsns::console)
+      (methcall "trace" js-global::console))
 
     (throw (create "message" (+ "No applicable methods for generic function call "
                                 (slot-value method-combo 'generic 'generic-name))
@@ -206,25 +247,26 @@ primary, before, and after methods are passed in most-specific-first."
     (return ret-val)))
 
 (defun compute-effective-method-combination (generic args-arr)
-  (defvar qualifer-matcher 
-    (lambda (str)
-      (return (lambda (meth) 
-		(return (== str (slot-value meth 'qualifier)))))))
+  (labels ((qualifer-matcher (str)
+             (return (lambda (meth) 
+                       (return (== str (slot-value meth 'qualifier)))))))
 
-  (let* ((applicable-methods
-	  (compute-applicable-methods generic args-arr))
-	 (effective-method-combo
-	  (create 'generic generic
-		  ;;		:arounds (applicable-methods.filter
-		  ;;			    (lambda (meth) (return (== meth.qualifier "around"))))
-		  'primaries ;(methcall :reverse
-				       (methcall :filter applicable-methods
-						 (qualifer-matcher "primary"))
-		  'befores (methcall :reverse
-				     (methcall :filter applicable-methods
-					       (qualifer-matcher "before")))
-		  'afters (methcall :filter applicable-methods (qualifer-matcher "after")))))
-    (return effective-method-combo)))
+    (let* ((applicable-methods
+            (compute-applicable-methods generic args-arr))
+           (effective-method-combo
+            (create 'generic generic
+                    ;;		:arounds (applicable-methods.filter
+                    ;;			    (lambda (meth) (return (== meth.qualifier "around"))))
+                    'primaries          ;(methcall :reverse
+                    (methcall :filter applicable-methods
+                              (qualifer-matcher "primary"))
+                    'befores (methcall :reverse
+                                       (methcall :filter applicable-methods
+                                                 (qualifer-matcher "before")))
+                    'afters (methcall :filter applicable-methods (qualifer-matcher "after")))))
+      (return effective-method-combo))))
+
+
 
 ;;; END LOSS
 (defun generate-callable-method ()
