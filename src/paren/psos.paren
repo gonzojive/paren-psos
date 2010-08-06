@@ -159,6 +159,9 @@ both the specializer list and whether the method is a primary, after,
 or before method."
   (let ((str (+ (slot-value method 'qualifier) "")))
     (dolist (specializer (slot-value method 'specializer-list))
+      (when (and specializer (not (@ specializer 'psos-id)))
+        (setf (slot-value specializer 'psos-id) (methcall :to-string (next-class-id))))
+
       (setf str (+ str "_"
                    (cond ((not specializer) "NONE")
                          ((slot-value specializer 'psos-id) (slot-value specializer 'psos-id))
@@ -172,11 +175,10 @@ or before method."
   ;; ensure that new methods with the same specializers as old
   ;; ones replace the old ones
   (setf (slot-value generic 'generic-methods)
-        (remove (slot-value method 'specializer-list)
+        (remove (method-signature method)
                 (slot-value generic 'generic-methods)
-                :key (lambda (m) (return (slot-value m 'specializer-list)))
-                :test (lambda (x y)
-                        (return (every #'eql x y)))))
+                :key (lambda (m) (return (method-signature m)))
+                :test #'eql))
 
   (methcall :push (slot-value generic 'generic-methods) method))
 
@@ -402,6 +404,13 @@ args.  Right now it looks through all the method specializers."
   (:documentation "Called to initialize an instance with the given initargs.  Default behavior
 is to merge the initargs into the instance for slot instantiation."))
 
+(defgeneric shared-initialize (instance &rest rest)
+  (:documentation "Called to initialize an instance with the given
+  initargs.  Does not use any of the initforms."))
+
+(defgeneric reinitialize-instance (instance &rest rest)
+  (:documentation "Called to reinitialize an instance with the given initargs."))
+
 (defvar init-instance initialize-instance)
 
 (defmethod allocate-instance ((of-class standard-class) &rest rest)
@@ -430,11 +439,14 @@ is to merge the initargs into the instance for slot instantiation."))
 	  (setf (slot-value instance instance-prop) val)))
       (incf i 2)))
 
-  ;; Now we set slots of objects that haven't been initialized
-  (lispy-map (lambda (supercl)
-	       (when (slot-value supercl 'initform-fn)
-		 (methcall 'initform-fn supercl instance)))
-	     (class-precedence-list (class-of instance)))
+  (with-slots (initializedp) instance
+    (unless initializedp
+      ;; Now we set slots of objects that haven't been initialized
+      (lispy-map (lambda (supercl)
+                   (when (slot-value supercl 'initform-fn)
+                     (methcall 'initform-fn supercl instance)))
+                 (class-precedence-list (class-of instance))))
+    (setf initializedp t))
   (return instance))
 
 

@@ -140,3 +140,22 @@
          (defmethod my-method :after ((x doggy))
            (return 7))
          (my-method (make-instance 'doggy))))))
+
+(deftest test-reinitialize-instance ()
+  "Ensures that initialize-instance only calls initforms when run for
+the first time.  We should really use reinitialize-instance for this
+behavior but this is the current hack."
+  (ps-forms-equal-lisp-forms
+    (3 (progn
+         (defclass yarn ()
+           ((length :initform 3 :initarg :length :accessor yarn-length)))
+         (yarn-length (make-instance 'yarn))))
+    (4 (progn
+         (let ((y (make-instance 'yarn)))
+           (setf (yarn-length y) 4)
+           (yarn-length y))))
+    (5 (progn
+         (let ((y (make-instance 'yarn)))
+           (setf (yarn-length y) 5)
+           (initialize-instance y)
+           (yarn-length y))))))
