@@ -63,11 +63,11 @@ Note: slot-defs are currently ignored because slots are defined at
 compile-time."
   (let ((class-obj (generate-std-class-constructor)))
     (setf (slot-value class-obj 'class-name) name)
-    (setf (slot-value class-obj 'psos-id) (methcall :to-string (next-class-id)))
+    (setf (slot-value class-obj 'psos-id) (methcall 'jsns::to-string (next-class-id)))
     (setf (slot-value class-obj 'direct-superclasses) direct-superclasses)
     (setf (slot-value class-obj 'initform-fn) initform-fn)
 
-    (setf (slot-value class-obj :to-string)
+    (setf (slot-value class-obj 'jsns::to-string)
 	  (lambda () (return (+ "<PSOS:Class " name ">"))))
     (setf (slot-value class-obj :constructor)
 	  metaclass)
@@ -160,7 +160,7 @@ or before method."
   (let ((str (+ (slot-value method 'qualifier) "")))
     (dolist (specializer (slot-value method 'specializer-list))
       (when (and specializer (not (@ specializer 'psos-id)))
-        (setf (slot-value specializer 'psos-id) (methcall :to-string (next-class-id))))
+        (setf (slot-value specializer 'psos-id) (methcall 'jsns::to-string (next-class-id))))
 
       (setf str (+ str "_"
                    (cond ((not specializer) "NONE")
@@ -190,7 +190,7 @@ or before method."
       (setf generic-methods (array))
       (setf generic-name name)
       (setf cached-method-combo (create)))
-    (setf (slot-value concrete-function :to-string)
+    (setf (slot-value concrete-function 'jsns::to-string)
 	  (lambda () (return (+ "<PSOS:Generic " (slot-value concrete-function 'generic-name) ">"))))
     (return concrete-function)))
 

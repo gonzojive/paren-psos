@@ -1,0 +1,10 @@
+(in-package :paren-psos)
+
+(unless (=== (lisp "hello") "hello")
+  (throw "Sanity check error 1"))
+
+(lisp (eql (find-package :paren-psos) *package*))
+
+(methcall "thing" "blah")
+
+(lisp (format nil "METHCALL is ~S (~S) -- package is ~S (read-time ~S)" 'methcall (symbol-package 'methcall) #.*package* *package*))
