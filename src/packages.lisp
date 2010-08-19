@@ -29,7 +29,14 @@
    #:class-initarg-map
    #:generic-name
    #:class-of
-   #:import-class))
+   #:import-class
+
+   #:invoke-restart
+   #:restart-case
+   #:restart-bind
+   #:handler-case
+   #:handler-bind
+   #:signal))
 
 
 (in-package org.iodb.paren-psos)

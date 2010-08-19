@@ -41,6 +41,29 @@
               (setf r (+ r "restart-"))
               num))
           (setf r (+ r "exit"))
+          r))))
+    ("start-enter1-enter2-unwhc2-restart2-unwind2-unwhc1-unwind1-exit"
+     (funcall
+      (lambda ()
+        (let ((r "start-"))
+          (labels ((myfn (invokep level)
+                     (unwind-protect
+                          (restart-case
+                              (unwind-protect
+                                   (progn
+                                     (incf r (+ "enter" level "-"))
+                                     (if invokep
+                                         (invoke-restart 'myrestart "invoked")
+                                         (myfn t "2")))
+                                (incf r (+ "unwhc" level "-")))
+                            (myrestart (thing)
+                              (incf r (+ "restart" level "-"))
+                              (when (eql "2" level)
+                                #+nil
+                                (invoke-restart 'myrestart))))
+                       (incf r (+ "unwind" level "-")))))
+            (myfn nil "1")
+            (incf r "exit"))
           r))))))
 
 (deftest test-restart-bind ()
@@ -115,6 +138,59 @@
                    (condition (err)
                      (setf r (+ r "d"))
                      17))
-                 r))))))
+                 r))))
+    ("start-enter1-enter2-unwhc2-handler2-unwind2-unwhc1-unwind1-exit"
+     (funcall
+      (lambda ()
+        (let ((r "start-"))
+          (labels ((myfn (errp level)
+                     (unwind-protect
+                          (handler-case
+                              (unwind-protect
+                                   (progn
+                                     (incf r (+ "enter" level "-"))
+                                     (if errp
+                                         (signal (make-instance 'condition))
+                                         (myfn t "2")))
+                                (incf r (+ "unwhc" level "-")))
+                            (condition (err)
+                              (incf r (+ "handler" level "-"))))
+                       (incf r (+ "unwind" level "-")))))
+            (myfn nil "1")
+            (incf r "exit"))
+          r))))
+    ("start-enter1-enter2-unwhc2-handler2-unwind2-unwhc1-unwind1-exit"
+     (funcall
+      (lambda ()
+        (let ((r "start-"))
+          (labels ((myfn2 (errp level)
+                     (unwind-protect
+                          (handler-case
+                              (unwind-protect
+                                   (progn
+                                     (incf r (+ "enter" level "-"))
+                                     (if errp
+                                         (signal (make-instance 'condition))
+                                         (myfn2 t "2")))
+                                (incf r (+ "unwhc" level "-")))
+                            (condition (err)
+                              (incf r (+ "handler" level "-"))))
+                       (incf r (+ "unwind" level "-"))))
+                   (myfn1 (errp level)
+                     (unwind-protect
+                          (handler-case
+                              (unwind-protect
+                                   (progn
+                                     (incf r (+ "enter" level "-"))
+                                     (if errp
+                                         (signal (make-instance 'condition))
+                                         (myfn2 t "2")))
+                                (incf r (+ "unwhc" level "-")))
+                            (condition (err)
+                              (incf r (+ "handler" level "-"))))
+                       (incf r (+ "unwind" level "-")))))
+            (myfn1 nil "1")
+            (incf r "exit"))
+          r))))))
 
              

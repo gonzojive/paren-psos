@@ -46,7 +46,12 @@
            ,form)))))
 
 (defpsmacro restart-case (form &rest clauses)
-  (with-ps-gensyms (args-to-restart local-restarts)
+  (with-ps-gensyms (args-to-restart local-restarts tag)
+    ;; FIXME: tag should be generated per-run, not lexically.
+    ;; Recursively called functions with the same restarts will
+    ;; improperly catch as it is now when INVOKE-RESTART is used with
+    ;; to pluck out a restart that is deeper in the stack.  fix is not
+    ;; urgent but this is clearly a bug
     `(let ((,local-restarts
             (list ,@(mapcar #'(lambda (clause)
                                 (destructuring-bind (name lambda-list &body body)
@@ -56,6 +61,7 @@
                                            'fn (lambda ()
                                                  (let ((,args-to-restart arguments))
                                                    (throw (create 'ps-signal-p t
+                                                                  'ps-signal-tag ',tag
                                                                   'continuation (lambda ()
                                                                                   (apply (lambda ,lambda-list
                                                                                            ,@body)
@@ -66,31 +72,36 @@
                  (declare (special *active-restarts*))
                  ,form)
                (:catch (err)
-                 (if (and err (getprop err 'ps-signal-p))
+                 (if (and err (getprop err 'ps-signal-p) (eql ',tag (getprop err 'ps-signal-tag)))
                      (funcall (getprop err 'continuation))
                      (throw err)))))))
 
+(defpsmacro unwind-protect (protected &body cleanup)
+  `(try ,protected
+        (:finally ,@cleanup)))
+
 (defpsmacro handler-case (form &rest clauses)
-  (with-ps-gensyms (local-handlers args-to-handler)
-    `(let ((,local-handlers 
-            (list ,@(mapcar #'(lambda (clause)
-                                (destructuring-bind (type lambda-list &body body)
-                                    clause
-                                  ;; todo strip out :report, :interactive, :test
-                                  `(create 'type ,type
-                                           'fn (lambda ()
-                                                 (let ((,args-to-handler arguments))
-                                                   (throw (create 'ps-signal-p t
-                                                                  'continuation (lambda ()
-                                                                                  (apply (lambda ,lambda-list
-                                                                                           ,@body)
-                                                                                         ,args-to-handler)))))))))
-                              clauses))))
+  (with-ps-gensyms (local-handlers args-to-handler tag)
+    `(let* ((,local-handlers 
+             (list ,@(mapcar #'(lambda (clause)
+                                 (destructuring-bind (type lambda-list &body body)
+                                     clause
+                                   ;; todo strip out :report, :interactive, :test
+                                   `(create 'type ,type
+                                            'fn (lambda ()
+                                                  (let ((,args-to-handler arguments))
+                                                    (throw (create 'ps-signal-p t
+                                                                   'ps-signal-tag ',tag
+                                                                   'continuation (lambda ()
+                                                                                   (apply (lambda ,lambda-list
+                                                                                            ,@body)
+                                                                                          ,args-to-handler)))))))))
+                             clauses))))
        (ps:try (let ((*active-handlers* (append ,local-handlers *active-handlers*)))
                  (declare (special *active-handlers*))
                  ,form)
                (:catch (err)
-                 (if (and err (getprop err 'ps-signal-p))
+                 (if (and err (getprop err 'ps-signal-p) (eql ',tag (getprop err 'ps-signal-tag)))
                      (funcall (getprop err 'continuation))
                      (throw err)))))))
 
