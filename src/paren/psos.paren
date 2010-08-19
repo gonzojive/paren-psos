@@ -307,7 +307,7 @@ the second argument is the function to be called when this method is called"
   (return concrete-function))
 
 (defun is-subclass-of (specializer test-class)
-  ""
+  "Returns T if TEST-CLASS is a subclass of SPECIALIZER."
   (return
     (if (=== specializer test-class)
 	t

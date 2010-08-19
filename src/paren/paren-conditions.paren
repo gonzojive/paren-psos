@@ -1,0 +1,92 @@
+(in-package :psos)
+
+(defvar *active-handlers* (array)
+  "List of handler specs bound by HANDLER-BIND where each member of
+  the array is an object with keys 'TYPE and 'FN.  When a signal
+  is raised, handlers are checked first to last and ")
+
+(defvar *original-handlers* (array)
+  "List of handler specs bound by HANDLER-BIND where each member of
+  the array is an object with keys 'TYPE and 'FN.  When a signal
+  is raised, handlers are checked first to last and ")
+
+(defvar *active-restarts* (array)
+  "List of restart specs bound by HANDLER-BIND where each member of
+the array is an object with keys 'NAME and 'FN.")
+
+
+#+nil
+(defun invoke-handler-or-rethrow (err activated-handlers original-handlers)
+  "If ERR is a signal, searches the activated-handlers for a handler
+with an appropriate type.  IF one iis found that "
+  (if (not (and err (getprop err 'ps-signal-p)))
+      ;; re-raise throws we aren't supposed to inspect
+      (throw err)
+
+      (let* ((*active-handlers* original-handlers)
+             (err-class (class-of err))
+             (handler-fn nil))
+ 
+        (dolist (handler-spec activated-handlers)
+          (when (is-subclass-of (getprop handler-spec 'type) err-class)
+
+            (setf handler-fn (getprop handler-spec 'fn))))
+
+        (unless handler-fn
+          (pslog (:error "Failed to find an appropriate handler for error %o") err)
+          ;; todo raise rror
+          (return))
+        (funcall handler-fn err))))
+
+(defun invoke-handler-or-throw (err activated-handlers original-handlers)
+  "If ERR is a signal, searches the activated-handlers for a handler
+with an appropriate type.  IF one iis found that "
+  (if (not (and err (getprop err 'ps-signal-p)))
+      ;; re-raise throws we aren't supposed to inspect
+      (throw err)
+
+      (let* ((*active-handlers* original-handlers)
+             (err-class (class-of err))
+             (handler-fn nil))
+ 
+        (dolist (handler-spec activated-handlers)
+          (when (is-subclass-of (getprop handler-spec 'type) err-class)
+;          (when (is-subclass-of err-class (getprop handler-spec 'type))
+            (setf handler-fn (getprop handler-spec 'fn))
+            (break)))
+
+        (unless handler-fn
+          (pslog (:error "Failed to find an appropriate handler for error %o") err)
+          (throw (+ "Failed to find an appropriate handler for " err))
+          ;; todo raise error
+          (return))
+        (funcall handler-fn err))))
+
+(defun invoke-restart (designator &rest args)
+  "If ERR is a signal, searches the activated-handlers for a handler
+with an appropriate type.  IF one iis found that "
+  (let* ((restart-fn nil)
+         (string? (eql "string" (ps:typeof designator))))
+    (dolist (spec *active-restarts*)
+      (when (or (and string? (eql designator (getprop spec 'name)))
+                (eql designator spec))
+        (setf restart-fn (getprop spec 'fn))
+        (break)))
+
+    (unless restart-fn
+      (pslog (:error "Failed to find an appropriate restart to match %o") designator)
+      (throw (+ "Failed to find an appropriate restart to match " designator))
+      ;; todo raise error
+      (return))
+
+    (apply restart-fn args)))
+ 
+(defclass condition ()
+  ())
+
+(defclass standard-error (condition)
+  ())
+
+(defun signal (thing)
+  (setf (getprop thing 'ps-signal-p) t)
+  (invoke-handler-or-throw thing *active-handlers* *original-handlers*))

@@ -20,11 +20,13 @@
 			 ;; (:file "parse-lambda-list" :depends-on ("packages"))
 			 (:file "util-macrology" :depends-on ("lisp-integration"))
 			 (:file "psos-macrology" :depends-on ("util-macrology" "lisp-integration"))
+			 (:file "conditions-macrology" :depends-on ("util-macrology" "lisp-integration"))
 			 
 			 (:module "paren"
 				  :components
 				  ((:parenscript-file "package")
-				   (:parenscript-file "psos" :depends-on ("package")))))))
+				   (:parenscript-file "psos" :depends-on ("package"))
+                                   (:parenscript-file "paren-conditions" :depends-on ("psos")))))))
 	       
   :depends-on ("parenscript" "closer-mop" "paren-util" "rjson"))
 
@@ -40,6 +42,11 @@
                          (:module "paren"
 				  :components ((:parenscript-file "psos-test"))))))
   :depends-on ("parenscript" "paren-psos" "cl-spidermonkey" "hu.dwim.stefil"))
+
+(defmethod asdf:perform ((o asdf:test-op) (c (eql (asdf:find-system :paren-psos))))
+  (asdf:operate 'asdf:load-op :paren-psos-test)
+  (funcall (intern (symbol-name '#:paren-psos-tests)
+                   (find-package '#:psos-tests))))
 
 #+nil
 (defsystem :paren-psos-test
