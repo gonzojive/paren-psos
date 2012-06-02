@@ -9,6 +9,9 @@ The JavaScript language supports prototype-based inheritance.  Although adequate
 
 The ParenScript Object System (PSOS) is a facility for object-oriented programming in ParenScript, a lispy language that compiles to JavaScript.  PSOS as a whole was largely inspired by the Common Lisp Object System (CLOS).  Its features include, or will include, class-based inheritance, generic functions, and a meta-object protocol.  The utility of this system has already been demonstrated by [1], an implementation of a Web Ontology Language (OWL) reasoner that incorporates OWL classes into the ParenScript language.
 
+Requirements
+PSOS requires some extensions beyond the base features provided by parenscript a modified version of parenscript can be downloaded at https://github.com/3b/parenscript/
+
 Example Usage
 Using the ParenScript system for generating JavaScript, the syntax for defining a new class is simple:
 
