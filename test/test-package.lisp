@@ -17,8 +17,8 @@
 
 (defsuite paren-psos-tests nil 
   (with-js-context (context)
-    (compile-and-evaluate-js "var window = this;" :filename "fakewindow.js")
-    (compile-and-evaluate-js (system-js) :filename "/tmp/paren-psos.js")
+    (compile-and-evaluate-js "var window = this;")
+    (compile-and-evaluate-js (system-js))
     (run-child-tests)))
 
 (in-suite paren-psos-tests)
