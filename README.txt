@@ -23,5 +23,5 @@ After defining classes, we can define methods that operate on these classes.  Th
     (defgeneric discuss-environment (individual))
     (defmethod discuss-environment ((individual person))
         (alert "I don't know anything about the environment"))
-    (defmethod discuss-enviornment ((individual politician))
+    (defmethod discuss-environment ((individual politician))
         (alert "The environment is an important issue, but so is Osama Bin Laden"))
