@@ -100,7 +100,7 @@
 
          (doggy-x (make-instance 'doggy))))
     (4 (progn
-         (doggy-x (make-instance 'doggy))))))
+         (doggy-x (make-instance 'poodle))))))
 
 (deftest test-initialize-instance-initargs ()
   (ps-forms-equal-lisp-forms
