@@ -17,8 +17,8 @@
 
 (defsuite paren-psos-tests nil 
   (with-js-context (context)
-    (compile-and-evaluate-js "var window = this;" :filename "fakewindow.js")
-    (compile-and-evaluate-js (system-js) :filename "/tmp/paren-psos.js")
+    (compile-and-evaluate-js "var window = this;")
+    (compile-and-evaluate-js (system-js))
     (run-child-tests)))
 
 (in-suite paren-psos-tests)
@@ -100,7 +100,7 @@
 
          (doggy-x (make-instance 'doggy))))
     (4 (progn
-         (doggy-x (make-instance 'doggy))))))
+         (doggy-x (make-instance 'poodle))))))
 
 (deftest test-initialize-instance-initargs ()
   (ps-forms-equal-lisp-forms

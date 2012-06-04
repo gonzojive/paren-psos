@@ -84,9 +84,9 @@ This doesn't handle multiple readers and writers."
 (ps:defpsmacro defmethod (&rest args)
   (multiple-value-bind (formal-name method-qualifiers specializers argument-list body lambda-list)
       (parse-defjsmethod-args args)
-    (setf (gethash formal-name parenscript::*ps-function-toplevel-cache*)
+    (setf (gethash formal-name parenscript::*function-lambda-list*)
           argument-list)
-    (setf (gethash formal-name parenscript::*ps-function-location-toplevel-cache* nil)
+    (setf (gethash formal-name parenscript::*function-location-toplevel-cache* nil)
           (list (ps::make-source-location 'defmethod formal-name argument-list body)))
 
     ;(format t "~%DEFMETHOD ARGS: ~A ~% and resultant argument list: ~A ~%" args argument-list)

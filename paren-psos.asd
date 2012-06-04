@@ -39,6 +39,7 @@
   :components ((:module "test"
 			:components
 			((:file "test-package")
+             (:file "test-conditions")
                          (:module "paren"
 				  :components ((:parenscript-file "psos-test"))))))
   :depends-on ("parenscript" "paren-psos" "cl-spidermonkey" "hu.dwim.stefil"))
